@@ -22,16 +22,19 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 // IN THE SOFTWARE.
 
+#include <cstdlib>
 #include <iostream>
 
 #include "dsc/prodcon_sum.hpp"
 #include "tds/mutexed_stack.hpp"
+#include "tds/treiber_stack.hpp"
 
 
 int main(int argc, char** argv) {
-    dsc::prodcon_sum<tds::mutexed_stack> checker(2, 4);
+    dsc::prodcon_sum<tds::treiber_stack> checker(atoll(argv[1]), atoll(argv[2]));
 
-    auto result = checker.run(10000000, 42);
+    auto result = checker.run(atoll(argv[3]), atoll(argv[4]));
+    // auto result = checker.run(100000, 666);
 
     std::cout << result << std::endl;
 }

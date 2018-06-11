@@ -29,6 +29,8 @@
 #include <memory>
 #include <utility>
 
+#include "tds/hazard_ptr.hpp"
+
 // Thread-safe Data Structures
 namespace tds {
     template<typename VT>
@@ -36,6 +38,19 @@ namespace tds {
      public:
         using value_type = VT;
         
+        treiber_stack() = default;
+
+        ~treiber_stack() {
+            auto curr = top.load();
+            while(curr) {
+                auto temp = curr->next;
+                delete curr;
+                curr = temp;
+            }
+            std::cout << sizeof(node) << std::endl;
+            std::cout << biggest.load() << std::endl;
+        }
+
         void push(const value_type&) noexcept;
         void push(value_type&&) noexcept;
 
@@ -47,44 +62,68 @@ namespace tds {
         };
 
         std::atomic<node*> top;
+        std::atomic_uintmax_t size;
+        std::atomic_uintmax_t biggest;
     };
 
     template<typename VT>
     void treiber_stack<VT>::push(const value_type& value) noexcept {
-        auto node = new treiber_stack<VT>::node{value, top};
-        top = node;
+        auto newtop = new treiber_stack<VT>::node{value, top.get()};
+        newtop->next = top;
+
+        while (!top.compare_exchange_weak(newtop->next, newtop));
+        size.fetch_add(1);
+        auto local_size = 1 + size.fetch_add(1);
+        auto bsize = biggest.load(std::memory_order_relaxed);
+        if (local_size > bsize) {
+            while (!biggest.compare_exchange_weak(bsize, local_size)) {
+                auto temp = size.load(std::memory_order_relaxed);
+                if (temp > local_size) {
+                    local_size = temp;
+                }
+            }
+        }
     }
 
     template<typename VT>
     void treiber_stack<VT>::push(value_type&& value) noexcept {
-        auto new_top = new treiber_stack<VT>::node{std::move(value), nullptr};
-        auto old_top = top.load(std::memory_order_acquire);
-        new_top->next = old_top;
+        auto newtop = new treiber_stack<VT>::node{std::move(value)};
+        newtop->next = top;
 
-        while (!top.compare_exchange_weak(old_top, new_top, std::memory_order_release, std::memory_order_acquire)) {
-            old_top = top.load(std::memory_order_acquire);
-            new_top->next = old_top;
+        while (!top.compare_exchange_weak(newtop->next, newtop));
+        auto local_size = 1 + size.fetch_add(1);
+        auto bsize = biggest.load(std::memory_order_relaxed);
+        if (local_size > bsize) {
+            while (!biggest.compare_exchange_weak(bsize, local_size)) {
+                auto temp = size.load(std::memory_order_relaxed);
+                if (temp > local_size) {
+                    local_size = temp;
+                }
+            }
         }
     }
 
     template<typename VT>
     std::pair<VT, bool> treiber_stack<VT>::pop() {
-        auto old_top = top.load(std::memory_order_acquire);
-        if (old_top) {
-            auto new_top = old_top->next;
-            auto data = old_top->value;
-            while (!top.compare_exchange_weak(old_top, new_top, std::memory_order_release, std::memory_order_acquire)) {
-                old_top = top.load(std::memory_order_acquire);
+        node* old_top;
+        {
+            hazard_ptr<node,8> guard;
+            while (true) {
+                old_top = guard.protect(top);
                 if (!old_top) {
                     return {value_type(), false};
                 }
-                new_top = old_top->next;
-                data = old_top->value;
-            }
-            return {data, true};
-        }
 
-        return {value_type(), false};
+                if(top.compare_exchange_weak(old_top, old_top->next,
+                   std::memory_order_acquire, std::memory_order_relaxed)) {
+                    break;
+                }
+            }
+        }
+        auto data = old_top->value;
+        hazard_ptr<node,8>::retire(old_top);
+        size.fetch_add(-1);
+        return {data, true};
     }
 }
 

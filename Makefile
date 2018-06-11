@@ -37,7 +37,7 @@ MAINFILES :=$(SRCDIR)/main.cpp
 # Binaries corresponding to each file with a main() function
 BINARIES  :=$(BINDIR)/execute_me
 # Compiler & linker flags
-CXXFLAGS :=-std=c++14 -Wall -pthread
+CXXFLAGS :=-std=c++14 -Wall -pthread -O3
 LDFLAGS  :=
 LDLIBS   :=
 INCLUDE  :=-I$(INCDIR)

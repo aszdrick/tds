@@ -40,8 +40,8 @@ namespace dsc {
         prodcon_sum(intmax_t, intmax_t, intmax_t = 100, CDSArgs&&...);
         bool run(intmax_t, intmax_t);
      private:
-        intmax_t nconsumers;
         intmax_t nproducers;
+        intmax_t nconsumers;
         intmax_t gen_limit;
         intmax_t active_producers = 0;
         std::mutex producers_mutex;
@@ -54,19 +54,19 @@ namespace dsc {
 
     template<template<class> class CDS>
     template<typename... CDSArgs>
-    prodcon_sum<CDS>::prodcon_sum(intmax_t nc, intmax_t np, intmax_t limit,
+    prodcon_sum<CDS>::prodcon_sum(intmax_t np, intmax_t nc, intmax_t limit,
                                   CDSArgs&&... args):
-      nconsumers(nc),
       nproducers(np),
+      nconsumers(nc),
       gen_limit(limit),
-      data_structure(std::forward<CDSArgs>(args)...) {
+      data_structure{std::forward<CDSArgs>(args)...} {
 
     }
 
     template<template<class> class CDS>
     bool prodcon_sum<CDS>::run(intmax_t n_iterations, intmax_t seed) {
-        std::vector<std::future<intmax_t>> consumer_futures(nconsumers);
         std::vector<std::future<intmax_t>> producer_futures(nproducers);
+        std::vector<std::future<intmax_t>> consumer_futures(nconsumers);
         intmax_t consumer_total_sum = 0;
         intmax_t producer_total_sum = 0;
 

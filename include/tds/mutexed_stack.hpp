@@ -29,6 +29,10 @@
 #include <mutex>
 #include <utility>
 
+#include <stack>
+
+#include <iostream>
+
 // Thread-safe Data Structures
 namespace tds {
     // Non-intrusive mutexed stack
@@ -42,41 +46,31 @@ namespace tds {
 
         std::pair<value_type, bool> pop();
      private:
-        struct node {
-            value_type value;
-            node* next;
-        };
-
-        node* top = nullptr;
         std::mutex mutex;
+        std::stack<VT> inner_stack;
     };
 
     template<typename VT>
     void mutexed_stack<VT>::push(const value_type& value) {
         std::lock_guard<std::mutex> guard(mutex);
-        auto node = new mutexed_stack<VT>::node{value, top};
-        top = node;
+        inner_stack.push(value);
     }
 
     template<typename VT>
     void mutexed_stack<VT>::push(value_type&& value) {
         std::lock_guard<std::mutex> guard(mutex);
-        auto node = new mutexed_stack<VT>::node{std::move(value), top};
-        top = node;
+        inner_stack.push(std::move(value));
     }
 
     template<typename VT>
     std::pair<VT, bool> mutexed_stack<VT>::pop() {
         std::lock_guard<std::mutex> guard(mutex);
-        if (top) {
-            VT data = top->value;
-            auto next = top->next;
-            delete top;
-            top = next;
-            return {data, true};
-        } else {
-            return {0, false};
+        if (!inner_stack.empty()) {
+            auto temp = inner_stack.top();
+            inner_stack.pop();
+            return {temp, true};
         }
+        return {0, false};
     }
 }
 
