@@ -47,8 +47,6 @@ namespace tds {
                 delete curr;
                 curr = temp;
             }
-            std::cout << sizeof(node) << std::endl;
-            std::cout << biggest.load() << std::endl;
         }
 
         void push(const value_type&) noexcept;
@@ -63,7 +61,6 @@ namespace tds {
 
         std::atomic<node*> top;
         std::atomic_uintmax_t size;
-        std::atomic_uintmax_t biggest;
     };
 
     template<typename VT>
@@ -73,16 +70,6 @@ namespace tds {
 
         while (!top.compare_exchange_weak(newtop->next, newtop));
         size.fetch_add(1);
-        auto local_size = 1 + size.fetch_add(1);
-        auto bsize = biggest.load(std::memory_order_relaxed);
-        if (local_size > bsize) {
-            while (!biggest.compare_exchange_weak(bsize, local_size)) {
-                auto temp = size.load(std::memory_order_relaxed);
-                if (temp > local_size) {
-                    local_size = temp;
-                }
-            }
-        }
     }
 
     template<typename VT>
@@ -91,16 +78,7 @@ namespace tds {
         newtop->next = top;
 
         while (!top.compare_exchange_weak(newtop->next, newtop));
-        auto local_size = 1 + size.fetch_add(1);
-        auto bsize = biggest.load(std::memory_order_relaxed);
-        if (local_size > bsize) {
-            while (!biggest.compare_exchange_weak(bsize, local_size)) {
-                auto temp = size.load(std::memory_order_relaxed);
-                if (temp > local_size) {
-                    local_size = temp;
-                }
-            }
-        }
+        size.fetch_add(1);
     }
 
     template<typename VT>

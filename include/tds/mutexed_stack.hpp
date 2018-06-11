@@ -38,6 +38,10 @@ namespace tds {
     // Non-intrusive mutexed stack
     template<typename VT>
     class mutexed_stack {
+        struct node {
+            VT value;
+            node* next;
+        };
      public:
         using value_type = VT;
 
@@ -48,23 +52,31 @@ namespace tds {
      private:
         std::mutex mutex;
         std::stack<VT> inner_stack;
+        // node* top;
     };
 
     template<typename VT>
     void mutexed_stack<VT>::push(const value_type& value) {
         std::lock_guard<std::mutex> guard(mutex);
+        // top = new node{value, top};
         inner_stack.push(value);
     }
 
     template<typename VT>
     void mutexed_stack<VT>::push(value_type&& value) {
         std::lock_guard<std::mutex> guard(mutex);
+        // top = new node{std::move(value), top};
         inner_stack.push(std::move(value));
     }
 
     template<typename VT>
     std::pair<VT, bool> mutexed_stack<VT>::pop() {
         std::lock_guard<std::mutex> guard(mutex);
+        // if (top) {
+        //     auto temp = top->value;
+        //     auto new_top = top->next;
+        //     delete top;
+        //     top = new_top;
         if (!inner_stack.empty()) {
             auto temp = inner_stack.top();
             inner_stack.pop();

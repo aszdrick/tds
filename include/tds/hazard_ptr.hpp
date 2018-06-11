@@ -46,21 +46,13 @@ namespace tds {
         // and a global list of 'protected' objects.
         template<uintmax_t N, uintmax_t K>
         class hp_context {
-            // Container to hold the retired objects.
-            // It's required to ensure the deletion of retired objects
-            // in the event of destruction of the owner thread.
-            template<typename Ptr>
-            struct container {
-                ~container();
-                std::vector<Ptr> objects;
-            };
             // Entry used in the guard_entries.
             // Stores each pointer as void* and uses an atomic_bool
             // to sinalize activation and deactivation.
             using entry = std::pair<void*, std::atomic_bool>;
-            // Limit used to decide when make a new call to scan().
-            static constexpr auto RETIRED_LIMIT = 2*N*K;
          public:
+            template<typename T>
+            using list_type = std::vector<T>;
             // Activates a guard entry in guard_entries
             // and returns the corresponding id.
             static uintmax_t guard() noexcept;
@@ -70,36 +62,43 @@ namespace tds {
             static Ptr protect(const std::atomic<Ptr>&, uintmax_t) noexcept;
             // Deactivates the guard entry in the passed guard_id.
             static void release(uintmax_t) noexcept;
-            // Retires a value, placing it in the retired.objects vector.
-            // Also makes a call to scan<Ptr>() if a given amount of retired
-            // objects is reached.
-            template<typename Ptr>
-            static void retire(Ptr) noexcept;
             // Scans the objects stored in retired.objects and deletes those
             // which are not present in guard_entries.
             template<typename Ptr>
-            static void scan();
+            static void scan(list_type<Ptr>&);
          private:
             static std::array<entry, N*K> guard_entries;
-            template<typename Ptr>
-            static thread_local container<Ptr> retired;
-
         };
     }
 
     template<typename T, uintmax_t N, uintmax_t K = 1>
     class hazard_ptr {
+        // Limit used to decide when make a new call to scan().
+        static constexpr auto RETIRED_LIMIT = N*K*2;
+        // Container to hold the retired objects.
+        // It's required to ensure the deletion of retired objects
+        // in the event of destruction of the owner thread.
+        struct container {
+            ~container();
+            typename detail::hp_context<N,K>::template list_type<T*> objects;
+        };
      public:
         hazard_ptr() noexcept;
         hazard_ptr(const hazard_ptr<T,N,K>&) = delete;
         hazard_ptr(hazard_ptr<T,N,K>&&) = delete;
-        ~hazard_ptr() noexcept;
 
+        ~hazard_ptr() noexcept;
+        // Retires a value, placing it in the retired.objects vector.
+        // Also makes a call to scan() if RETIRED_LIMIT is reached.
         static void retire(T* value_ptr) noexcept;
+
+        template<typename... Args>
+        static T* allocate(Args&&...);
 
         T* protect(const std::atomic<T*>&) noexcept;
      private:
         uintmax_t guard_id;
+        static thread_local container retired;
     };
 }
 

@@ -31,20 +31,18 @@ template<uintmax_t N, uintmax_t K>
 std::array<typename tds::detail::hp_context<N,K>::entry, N*K>
 tds::detail::hp_context<N,K>::guard_entries;
 
-template<uintmax_t N, uintmax_t K>
-template<typename Ptr>
-thread_local tds::detail::hp_context<N,K>::container<Ptr>
-tds::detail::hp_context<N,K>::retired;
+template<typename T, uintmax_t N, uintmax_t K>
+thread_local typename tds::hazard_ptr<T,N,K>::container
+tds::hazard_ptr<T,N,K>::retired;
 
 ///////////////////////////////////////////////////////////////////////////////
 // tds::detail::hp_context<K,N>::container methods implementation
 ///////////////////////////////////////////////////////////////////////////////
 
-template<uintmax_t N, uintmax_t K>
-template<typename Ptr>
-tds::detail::hp_context<N,K>::container<Ptr>::~container() {
+template<typename T, uintmax_t N, uintmax_t K>
+tds::hazard_ptr<T,N,K>::container::~container() {
     while (!objects.empty()) {
-        hp_context<N,K>::scan<Ptr>();
+        detail::hp_context<N,K>::scan(objects);
     }
 }
 
@@ -75,15 +73,6 @@ void tds::detail::hp_context<N,K>::release(uintmax_t index) noexcept {
 
 template<uintmax_t N, uintmax_t K>
 template<typename Ptr>
-void tds::detail::hp_context<N,K>::retire(Ptr obj_ptr) noexcept {
-    retired<Ptr>.objects.push_back(obj_ptr);
-    if (retired<Ptr>.objects.size() > RETIRED_LIMIT) {
-        hp_context<N,K>::scan<Ptr>();
-    }
-}
-
-template<uintmax_t N, uintmax_t K>
-template<typename Ptr>
 Ptr tds::detail::hp_context<N,K>::protect(const std::atomic<Ptr>& value,
                                           uintmax_t index) noexcept {
     Ptr copy;
@@ -96,16 +85,16 @@ Ptr tds::detail::hp_context<N,K>::protect(const std::atomic<Ptr>& value,
 
 template<uintmax_t N, uintmax_t K>
 template<typename Ptr>
-void tds::detail::hp_context<N,K>::scan() {
+void tds::detail::hp_context<N,K>::scan(std::vector<Ptr>& objects) {
     std::unordered_set<Ptr> to_be_deleted(
-        retired<Ptr>.objects.cbegin(), retired<Ptr>.objects.cend()
+        objects.cbegin(), objects.cend()
     );
-    retired<Ptr>.objects.clear();
+    objects.clear();
     for (uintmax_t i = 0; i < N*K; ++i) {
         if (guard_entries[i].second.load(std::memory_order_relaxed)) {
             auto pointer = reinterpret_cast<Ptr>(guard_entries[i].first);
             if(to_be_deleted.erase(pointer)) {
-                retired<Ptr>.objects.push_back(pointer);
+                objects.push_back(pointer);
             }
         }
     }
@@ -113,6 +102,10 @@ void tds::detail::hp_context<N,K>::scan() {
         delete pointer;
     }
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// tds::hazard_ptr methods implementation
+///////////////////////////////////////////////////////////////////////////////
 
 template<typename T, uintmax_t N, uintmax_t K>
 tds::hazard_ptr<T,N,K>::hazard_ptr() noexcept {
@@ -130,6 +123,15 @@ tds::hazard_ptr<T,N,K>::~hazard_ptr() noexcept {
 }
 
 template<typename T, uintmax_t N, uintmax_t K>
-void tds::hazard_ptr<T,N,K>::retire(T* value_ptr) noexcept {
-    detail::hp_context<N,K>::retire(value_ptr);
+void tds::hazard_ptr<T,N,K>::retire(T* obj_ptr) noexcept {
+    retired.objects.push_back(obj_ptr);
+    if (retired.objects.size() > RETIRED_LIMIT) {
+        detail::hp_context<N,K>::scan(retired.objects);
+    }
+}
+
+template<typename T, uintmax_t N, uintmax_t K>
+template<typename... Args>
+T* tds::hazard_ptr<T,N,K>::allocate(Args&&... args) {
+
 }
