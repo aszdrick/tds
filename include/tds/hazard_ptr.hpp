@@ -44,7 +44,7 @@ namespace tds {
         // Responsible for the actual memory reclamation.
         // Keeps a per thread list of 'retired' objects to be deleted
         // and a global list of 'protected' objects.
-        template<uintmax_t N, uintmax_t K>
+        template<unsigned N, unsigned K>
         class hp_context {
             // Entry used in the guard_entries.
             // Stores each pointer as void* and uses an atomic_bool
@@ -55,13 +55,13 @@ namespace tds {
             using list_type = std::vector<T>;
             // Activates a guard entry in guard_entries
             // and returns the corresponding id.
-            static uintmax_t guard() noexcept;
+            static unsigned guard() noexcept;
             // Protects an atomic value in the given guard_id.
             // The returned value is guaranteed to be protected.
             template<typename Ptr>
-            static Ptr protect(const std::atomic<Ptr>&, uintmax_t) noexcept;
+            static Ptr protect(const std::atomic<Ptr>&, unsigned) noexcept;
             // Deactivates the guard entry in the passed guard_id.
-            static void release(uintmax_t) noexcept;
+            static void release(unsigned) noexcept;
             // Scans the objects stored in retired.objects and deletes those
             // which are not present in guard_entries.
             template<typename Ptr>
@@ -71,7 +71,7 @@ namespace tds {
         };
     }
 
-    template<typename T, uintmax_t N, uintmax_t K = 1>
+    template<typename T, unsigned N, unsigned K = 1>
     class hazard_ptr {
         // Limit used to decide when make a new call to scan().
         static constexpr auto RETIRED_LIMIT = N*K*2;
@@ -79,6 +79,7 @@ namespace tds {
         // It's required to ensure the deletion of retired objects
         // in the event of destruction of the owner thread.
         struct container {
+            // container();
             ~container();
             typename detail::hp_context<N,K>::template list_type<T*> objects;
         };
@@ -92,12 +93,9 @@ namespace tds {
         // Also makes a call to scan() if RETIRED_LIMIT is reached.
         static void retire(T* value_ptr) noexcept;
 
-        template<typename... Args>
-        static T* allocate(Args&&...);
-
         T* protect(const std::atomic<T*>&) noexcept;
      private:
-        uintmax_t guard_id;
+        unsigned guard_id;
         static thread_local container retired;
     };
 }

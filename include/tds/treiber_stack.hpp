@@ -65,7 +65,7 @@ namespace tds {
 
     template<typename VT>
     void treiber_stack<VT>::push(const value_type& value) noexcept {
-        auto newtop = new treiber_stack<VT>::node{value, top.get()};
+        auto newtop = hazard_ptr<node,8>::allocate(value);
         newtop->next = top;
 
         while (!top.compare_exchange_weak(newtop->next, newtop));

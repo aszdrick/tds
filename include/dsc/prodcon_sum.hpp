@@ -37,24 +37,24 @@ namespace dsc {
     class prodcon_sum {
      public:
         template<typename... CDSArgs>
-        prodcon_sum(intmax_t, intmax_t, intmax_t = 100, CDSArgs&&...);
-        bool run(intmax_t, intmax_t);
+        prodcon_sum(unsigned, unsigned, unsigned = 100, CDSArgs&&...);
+        bool run(unsigned, unsigned);
      private:
-        intmax_t nproducers;
-        intmax_t nconsumers;
-        intmax_t gen_limit;
-        intmax_t active_producers = 0;
+        unsigned nproducers;
+        unsigned nconsumers;
+        unsigned gen_limit;
+        unsigned active_producers = 0;
         std::mutex producers_mutex;
         CDS<intmax_t> data_structure;
 
-        void active(intmax_t = 1);
+        void active(int = 1);
         intmax_t consume();
-        intmax_t produce(intmax_t, intmax_t);
+        intmax_t produce(unsigned, unsigned);
     };
 
     template<template<class> class CDS>
     template<typename... CDSArgs>
-    prodcon_sum<CDS>::prodcon_sum(intmax_t np, intmax_t nc, intmax_t limit,
+    prodcon_sum<CDS>::prodcon_sum(unsigned np, unsigned nc, unsigned limit,
                                   CDSArgs&&... args):
       nproducers(np),
       nconsumers(nc),
@@ -64,16 +64,16 @@ namespace dsc {
     }
 
     template<template<class> class CDS>
-    bool prodcon_sum<CDS>::run(intmax_t n_iterations, intmax_t seed) {
+    bool prodcon_sum<CDS>::run(unsigned n_iterations, unsigned seed) {
         std::vector<std::future<intmax_t>> producer_futures(nproducers);
         std::vector<std::future<intmax_t>> consumer_futures(nconsumers);
         intmax_t consumer_total_sum = 0;
         intmax_t producer_total_sum = 0;
 
-        for (intmax_t i = 0; i < std::max(nconsumers, nproducers); ++i) {
+        for (unsigned i = 0; i < std::max(nconsumers, nproducers); ++i) {
             if (i < nproducers) {
                 producer_futures[i] = std::async(
-                    [this](intmax_t n_iterations, intmax_t seed) {
+                    [this](unsigned n_iterations, unsigned seed) {
                         return this->produce(n_iterations, seed);
                     }, n_iterations, seed
                 );
@@ -97,7 +97,7 @@ namespace dsc {
     }
 
     template<template<class> class CDS>
-    void prodcon_sum<CDS>::active(intmax_t value) {
+    void prodcon_sum<CDS>::active(int value) {
         std::lock_guard<std::mutex> guard(producers_mutex);
         active_producers += value;
     }
@@ -117,7 +117,7 @@ namespace dsc {
     }
 
     template<template<class> class CDS>
-    intmax_t prodcon_sum<CDS>::produce(intmax_t n_iterations, intmax_t seed) {
+    intmax_t prodcon_sum<CDS>::produce(unsigned n_iterations, unsigned seed) {
         active();
         std::mt19937_64 gen(seed);
         intmax_t partial_sum = 0;
