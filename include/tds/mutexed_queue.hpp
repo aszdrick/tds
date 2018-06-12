@@ -22,34 +22,62 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 // IN THE SOFTWARE.
 
-#ifndef __DSC_PRODCON_SUM_HPP__
-#define __DSC_PRODCON_SUM_HPP__
+#ifndef __TDS_MUTEXED_QUEUE_HPP__
+#define __TDS_MUTEXED_QUEUE_HPP__
 
 #include <atomic>
-#include <cstdint>
-#include <future>
-#include <random>
+#include <memory>
+#include <mutex>
+#include <queue>
+#include <utility>
 
-// Data Structure Checkers
-namespace dsc {
-    // Producer-Consumer sum verification
-    template<template<class> class CDS>
-    class prodcon_sum {
+// Thread-safe Data Structures
+namespace tds {
+    // Queue with global mutex
+    template<typename VT>
+    class mutexed_queue {
      public:
-        prodcon_sum(unsigned, unsigned, unsigned = 100);
-        bool run(unsigned, unsigned);
-     private:
-        unsigned nproducers;
-        unsigned nconsumers;
-        unsigned gen_limit;
-        std::atomic_uint active_producers;
-        CDS<intmax_t> data_structure;
+        using value_type = VT;
 
-        intmax_t consume();
-        intmax_t produce(unsigned, unsigned);
+        void push(const value_type&);
+        void push(value_type&&);
+
+        std::pair<value_type, bool> pop();
+
+        size_t size() const;
+     private:
+        std::mutex mutex;
+        std::queue<VT> inner_queue;
+    };
+
+    // Queue with one mutex to push and another to pop
+    template<typename VT>
+    class dual_mutex_queue {
+        struct node {
+            VT value;
+            node* next;
+        };
+     public:
+        using value_type = VT;
+
+        dual_mutex_queue();
+        ~dual_mutex_queue();
+
+        void push(const value_type&);
+        void push(value_type&&);
+
+        std::pair<value_type, bool> pop();
+
+        size_t size() const;
+     private:
+        std::mutex push_mutex;
+        std::mutex pop_mutex;
+        std::atomic_size_t size_counter{0};
+        node* head;
+        node *tail;
     };
 }
 
-#include "prodcon_sum.ipp"
+#include "mutexed_queue.ipp"
 
-#endif /* __DSC_PRODCON_SUM_HPP__ */
+#endif /* __TDS_MUTEXED_QUEUE_HPP__ */

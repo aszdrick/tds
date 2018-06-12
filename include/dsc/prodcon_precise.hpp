@@ -28,7 +28,6 @@
 #include <atomic>
 #include <cstdint>
 #include <future>
-#include <mutex>
 #include <random>
 #include <unordered_map>
 
@@ -39,8 +38,6 @@ namespace dsc {
     class prodcon_precise {
         using CType = std::unordered_map<unsigned, uintmax_t>;
      public:
-        ~prodcon_precise() = default;
-
         prodcon_precise(unsigned, unsigned, unsigned = 100);
         bool run(unsigned, unsigned);
      private:
@@ -53,101 +50,8 @@ namespace dsc {
         CType consume();
         CType produce(unsigned, unsigned);
     };
-
-    template<template<class> class CDS>
-    prodcon_precise<CDS>::prodcon_precise(unsigned np, unsigned nc, unsigned limit):
-      nproducers{np},
-      nconsumers{nc},
-      gen_limit{limit},
-      active_producers{0} { }
-
-    template<template<class> class CDS>
-    bool prodcon_precise<CDS>::run(unsigned n_iterations, unsigned seed) {
-        std::vector<std::future<CType>> producer_futures(nproducers);
-        std::vector<std::future<CType>> consumer_futures(nconsumers);
-        CType producer_counters;
-        CType consumer_counters;
-
-        for (unsigned i = 0; i < nproducers; ++i) {
-            producer_futures[i] = std::async(std::launch::async,
-                [this](unsigned n_iterations, unsigned seed) {
-                    return this->produce(n_iterations, seed);
-                }, n_iterations, seed
-            );
-        }
-
-        for (unsigned i = 0; i < nconsumers; ++i) {
-            consumer_futures[i] = std::async(std::launch::async, [this]() {
-                return this->consume();
-            });
-        }
-
-        for (unsigned i = 0; i < producer_futures.size(); ++i) {
-            for (auto counter : producer_futures[i].get()) {
-                if (!producer_counters.count(counter.first)) {
-                    producer_counters[counter.first] = counter.second;
-                } else {
-                    producer_counters[counter.first] += counter.second;
-                }
-            }
-        }
-
-        for (unsigned i = 0; i < consumer_futures.size(); ++i) {
-            for (auto counter : consumer_futures[i].get()) {
-                if (!consumer_counters.count(counter.first)) {
-                    consumer_counters[counter.first] = counter.second;
-                } else {
-                    consumer_counters[counter.first] += counter.second;
-                }
-            }
-        }
-        return producer_counters == consumer_counters;
-    }
-
-    template<template<class> class CDS>
-    typename prodcon_precise<CDS>::CType prodcon_precise<CDS>::consume() {
-        CType counters;
-        unsigned number = 0;
-        bool valid = true;
-
-        while(active_producers == 0) {
-            std::this_thread::yield();
-        }
-
-        while (valid || active_producers > 0) {
-            std::tie(number, valid) = data_structure.pop();
-            if (valid) {
-                if (!counters.count(number)) {
-                    counters[number] = 1;
-                } else {
-                    counters[number] += 1;
-                }
-            }
-        }
-        return counters;
-    }
-
-    template<template<class> class CDS>
-    typename prodcon_precise<CDS>::CType prodcon_precise<CDS>::produce(
-                                        unsigned n_iterations, unsigned seed) {
-        std::mt19937_64 gen(seed);
-        CType counters;
-
-        active_producers.fetch_add(1);
-        
-        for (unsigned i = 0; i < n_iterations; ++i) {
-            unsigned number = gen() % gen_limit;
-            data_structure.push(number);
-            if (!counters.count(number)) {
-                counters[number] = 1;
-            } else {
-                counters[number] += 1;
-            }
-        }
-        active_producers.fetch_sub(1);
-
-        return counters;
-    }
 }
+
+#include "prodcon_precise.ipp"
 
 #endif /* __DSC_PRODCON_PRECISE_HPP__ */

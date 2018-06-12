@@ -22,20 +22,17 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 // IN THE SOFTWARE.
 
-#ifndef __LBDS_MUTEXED_STACK_HPP__
-#define __LBDS_MUTEXED_STACK_HPP__
+#ifndef __TDS_MUTEXED_STACK_HPP__
+#define __TDS_MUTEXED_STACK_HPP__
 
 #include <memory>
 #include <mutex>
-#include <utility>
-
 #include <stack>
-
-#include <iostream>
+#include <utility>
 
 // Thread-safe Data Structures
 namespace tds {
-    // Non-intrusive mutexed stack
+    // Stack with global mutex
     template<typename VT>
     class mutexed_stack {
      public:
@@ -46,34 +43,13 @@ namespace tds {
 
         std::pair<value_type, bool> pop();
 
-        auto size() { return inner_stack.size(); }
+        size_t size() const;
      private:
         std::mutex mutex;
         std::stack<VT> inner_stack;
     };
-
-    template<typename VT>
-    void mutexed_stack<VT>::push(const value_type& value) {
-        std::lock_guard<std::mutex> guard(mutex);
-        inner_stack.push(value);
-    }
-
-    template<typename VT>
-    void mutexed_stack<VT>::push(value_type&& value) {
-        std::lock_guard<std::mutex> guard(mutex);
-        inner_stack.push(std::move(value));
-    }
-
-    template<typename VT>
-    std::pair<VT, bool> mutexed_stack<VT>::pop() {
-        std::lock_guard<std::mutex> guard(mutex);
-        if (!inner_stack.empty()) {
-            auto temp = inner_stack.top();
-            inner_stack.pop();
-            return {temp, true};
-        }
-        return {0, false};
-    }
 }
 
-#endif /* __LBDS_MUTEXED_STACK_HPP__ */
+#include "mutexed_stack.ipp"
+
+#endif /* __TDS_MUTEXED_STACK_HPP__ */

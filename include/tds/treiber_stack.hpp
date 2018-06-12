@@ -40,12 +40,12 @@ namespace tds {
 
         ~treiber_stack();
 
-        void push(const value_type&) noexcept;
-        void push(value_type&&) noexcept;
+        void push(const value_type&);
+        void push(value_type&&);
 
         std::pair<value_type, bool> pop();
 
-        uintmax_t size() { return size_counter.load(); }
+        size_t size() const;
      private:
         struct node {
             value_type value;
@@ -53,7 +53,7 @@ namespace tds {
         };
 
         std::atomic<node*> top{nullptr};
-        std::atomic_uintmax_t size_counter{0};
+        std::atomic_size_t size_counter{0};
     };
 }
 

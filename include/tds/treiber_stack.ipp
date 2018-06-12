@@ -34,7 +34,7 @@ tds::treiber_stack<VT>::~treiber_stack() {
 }
 
 template<typename VT>
-void tds::treiber_stack<VT>::push(const value_type& value) noexcept {
+void tds::treiber_stack<VT>::push(const value_type& value) {
     auto newtop = new tds::treiber_stack<VT>::node{value};
     newtop->next = top;
 
@@ -43,7 +43,7 @@ void tds::treiber_stack<VT>::push(const value_type& value) noexcept {
 }
 
 template<typename VT>
-void tds::treiber_stack<VT>::push(value_type&& value) noexcept {
+void tds::treiber_stack<VT>::push(value_type&& value) {
     auto newtop = new tds::treiber_stack<VT>::node{std::move(value)};
     newtop->next = top;
 
@@ -72,4 +72,9 @@ std::pair<VT, bool> tds::treiber_stack<VT>::pop() {
     hazard_ptr<node>::retire(old_top);
     size_counter.fetch_add(-1);
     return {data, true};
+}
+
+template<typename VT>
+size_t tds::treiber_stack<VT>::size() const {
+    return size_counter.load();
 }

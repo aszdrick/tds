@@ -33,9 +33,9 @@ TSTDIR :=tests
 DEPDIR :=.deps
 ### PROGRAM-RELATED VARIABLES
 # Files containing the main() function
-MAINFILES :=$(SRCDIR)/main.cpp
+MAINFILES :=$(SRCDIR)/prodcon_test.cpp
 # Binaries corresponding to each file with a main() function
-BINARIES  :=$(BINDIR)/tds-test
+BINARIES  :=$(BINDIR)/prodcon-test
 # Compiler & linker flags
 CXXFLAGS :=-std=c++14 -Wall -pthread -O3
 LDFLAGS  :=

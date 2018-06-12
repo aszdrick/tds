@@ -22,40 +22,30 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 // IN THE SOFTWARE.
 
-#include <cstdlib>
-#include <iostream>
+template<typename VT>
+void tds::mutexed_stack<VT>::push(const value_type& value) {
+    std::lock_guard<std::mutex> guard(mutex);
+    inner_stack.push(value);
+}
 
-#include "dsc/prodcon_sum.hpp"
-#include "dsc/prodcon_precise.hpp"
-#include "tds/mutexed_stack.hpp"
-#include "tds/treiber_stack.hpp"
+template<typename VT>
+void tds::mutexed_stack<VT>::push(value_type&& value) {
+    std::lock_guard<std::mutex> guard(mutex);
+    inner_stack.push(std::move(value));
+}
 
-int main(int argc, char** argv) {
-    if (argc < 6) {
-        std::cout << "usage: tds-test [type] [n_producers]"
-                  << " [n_consumers] [n_iterations] [random_seed]"
-                  << std::endl;
-        return 1;
+template<typename VT>
+std::pair<VT, bool> tds::mutexed_stack<VT>::pop() {
+    std::lock_guard<std::mutex> guard(mutex);
+    if (!inner_stack.empty()) {
+        auto temp = inner_stack.top();
+        inner_stack.pop();
+        return {temp, true};
     }
+    return {0, false};
+}
 
-    int result = -1;
-    auto type = std::string(argv[1]);
-
-    if (type == "mutexed_stack") {
-        dsc::prodcon_precise<tds::mutexed_stack> checker(
-            atoll(argv[2]), atoll(argv[3])
-        );
-
-        result = checker.run(atoll(argv[4]), atoll(argv[5]));
-    } else if (type == "treiber_stack") {
-        dsc::prodcon_precise<tds::treiber_stack> checker(
-            atoll(argv[2]), atoll(argv[3])
-        );
-
-        result = checker.run(atoll(argv[4]), atoll(argv[5]));
-    }
-
-
-    std::cout << result << std::endl;
-    return result;
+template<typename VT>
+size_t tds::mutexed_stack<VT>::size() const { 
+    return inner_stack.size();
 }
