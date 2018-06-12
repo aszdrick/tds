@@ -32,8 +32,6 @@
 #include <random>
 #include <unordered_map>
 
-#include "tds/utilities.hpp"
-
 // Data Structure Checkers
 namespace dsc {
     // Producer-Consumer precise verification
@@ -50,7 +48,6 @@ namespace dsc {
         unsigned nconsumers;
         unsigned gen_limit;
         std::atomic_int active_producers;
-        tds::thread_barrier barrier;
         CDS<unsigned> data_structure;
 
         CType consume();
@@ -62,8 +59,7 @@ namespace dsc {
       nproducers{np},
       nconsumers{nc},
       gen_limit{limit},
-      active_producers{0},
-      barrier{np+nc} { }
+      active_producers{0} { }
 
     template<template<class> class CDS>
     bool prodcon_precise<CDS>::run(unsigned n_iterations, unsigned seed) {
@@ -73,7 +69,7 @@ namespace dsc {
         CType consumer_counters;
 
         for (unsigned i = 0; i < nproducers; ++i) {
-            producer_futures[i] = std::async(
+            producer_futures[i] = std::async(std::launch::async,
                 [this](unsigned n_iterations, unsigned seed) {
                     return this->produce(n_iterations, seed);
                 }, n_iterations, seed
@@ -81,14 +77,13 @@ namespace dsc {
         }
 
         for (unsigned i = 0; i < nconsumers; ++i) {
-            consumer_futures[i] = std::async([this]() {
+            consumer_futures[i] = std::async(std::launch::async, [this]() {
                 return this->consume();
             });
         }
 
         for (unsigned i = 0; i < producer_futures.size(); ++i) {
-            auto counters = producer_futures[i].get();
-            for (auto counter : counters) {
+            for (auto counter : producer_futures[i].get()) {
                 if (!producer_counters.count(counter.first)) {
                     producer_counters[counter.first] = counter.second;
                 } else {
@@ -98,8 +93,7 @@ namespace dsc {
         }
 
         for (unsigned i = 0; i < consumer_futures.size(); ++i) {
-            auto counters = consumer_futures[i].get();
-            for (auto counter : counters) {
+            for (auto counter : consumer_futures[i].get()) {
                 if (!consumer_counters.count(counter.first)) {
                     consumer_counters[counter.first] = counter.second;
                 } else {
@@ -116,11 +110,9 @@ namespace dsc {
         unsigned number = 0;
         bool valid = true;
 
-        // while(active_producers == 0) {
-        //     std::this_thread::yield();
-        // }
-
-        barrier.wait();
+        while(active_producers == 0) {
+            std::this_thread::yield();
+        }
 
         while (valid || active_producers > 0) {
             std::tie(number, valid) = data_structure.pop();
@@ -141,10 +133,7 @@ namespace dsc {
         std::mt19937_64 gen(seed);
         CType counters;
 
-
         active_producers.fetch_add(1);
-
-        barrier.wait();
         
         for (unsigned i = 0; i < n_iterations; ++i) {
             unsigned number = gen() % gen_limit;

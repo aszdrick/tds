@@ -67,14 +67,14 @@ namespace dsc {
 
         for (unsigned i = 0; i < std::max(nconsumers, nproducers); ++i) {
             if (i < nproducers) {
-                producer_futures[i] = std::async(
+                producer_futures[i] = std::async(std::launch::async,
                     [this](unsigned n_iterations, unsigned seed) {
                         return this->produce(n_iterations, seed);
                     }, n_iterations, seed
                 );
             }
             if (i < nconsumers) {
-                consumer_futures[i] = std::async([this]() {
+                consumer_futures[i] = std::async(std::launch::async, [this]() {
                     return this->consume();
                 });
             }
@@ -96,7 +96,9 @@ namespace dsc {
         intmax_t partial_sum = 0;
         intmax_t number = 0;
         bool valid = true;
-        while(active_producers.load() == 0); // valgrind doesn't like that
+        while(active_producers.load() == 0) {
+            std::this_thread::yield();
+        }
         while (valid || active_producers.load() > 0) {
             std::tie(number, valid) = data_structure.pop();
             if (valid) {
