@@ -35,7 +35,7 @@ DEPDIR :=.deps
 # Files containing the main() function
 MAINFILES :=$(SRCDIR)/main.cpp
 # Binaries corresponding to each file with a main() function
-BINARIES  :=$(BINDIR)/execute_me
+BINARIES  :=$(BINDIR)/tds-test
 # Compiler & linker flags
 CXXFLAGS :=-std=c++14 -Wall -pthread -O3
 LDFLAGS  :=

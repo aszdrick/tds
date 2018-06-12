@@ -22,39 +22,53 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 // IN THE SOFTWARE.
 
-#ifndef __TDS_TREIBER_STACK_HPP__
-#define __TDS_TREIBER_STACK_HPP__
-
-#include <atomic>
-#include <memory>
-#include <utility>
-
-#include "tds/hazard_ptr.hpp"
-
-// Thread-safe Data Structures
-namespace tds {
-    template<typename VT>
-    class treiber_stack {
-     public:
-        using value_type = VT;
-
-        ~treiber_stack();
-
-        void push(const value_type&) noexcept;
-        void push(value_type&&) noexcept;
-
-        std::pair<value_type, bool> pop();
-     private:
-        struct node {
-            value_type value;
-            node* next;
-        };
-
-        std::atomic<node*> top{nullptr};
-        std::atomic_uintmax_t size{0};
-    };
+template<typename VT>
+tds::treiber_stack<VT>::~treiber_stack() {
+    auto curr = top.load();
+    while(curr) {
+        auto temp = curr->next;
+        delete curr;
+        curr = temp;
+    }
 }
 
-#include "treiber_stack.ipp"
+template<typename VT>
+void tds::treiber_stack<VT>::push(const value_type& value) noexcept {
+    auto newtop = new tds::treiber_stack<VT>::node{value};
+    newtop->next = top;
 
-#endif /* __TDS_TREIBER_STACK_HPP__ */
+    while (!top.compare_exchange_weak(newtop->next, newtop));
+    size.fetch_add(1);
+}
+
+template<typename VT>
+void tds::treiber_stack<VT>::push(value_type&& value) noexcept {
+    auto newtop = new tds::treiber_stack<VT>::node{std::move(value)};
+    newtop->next = top;
+
+    while (!top.compare_exchange_weak(newtop->next, newtop));
+    size.fetch_add(1);
+}
+
+template<typename VT>
+std::pair<VT, bool> tds::treiber_stack<VT>::pop() {
+    node* old_top;
+    {
+        hazard_ptr<node> guard;
+        while (true) {
+            old_top = guard.protect(top);
+            if (!old_top) {
+                return {value_type(), false};
+            }
+
+            if(top.compare_exchange_weak(old_top, old_top->next,
+               std::memory_order_acquire, std::memory_order_relaxed)) {
+                break;
+            }
+        }
+    }
+    auto data = old_top->value;
+    hazard_ptr<node>::retire(old_top);
+    size.fetch_add(-1);
+    return {data, true};
+}

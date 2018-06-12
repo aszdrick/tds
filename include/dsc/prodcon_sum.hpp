@@ -25,10 +25,13 @@
 #ifndef __DSC_PRODCON_SUM_HPP__
 #define __DSC_PRODCON_SUM_HPP__
 
+#include <atomic>
 #include <cstdint>
 #include <future>
 #include <mutex>
 #include <random>
+
+#include <iostream>
 
 // Data Structure Checkers
 namespace dsc {
@@ -43,11 +46,9 @@ namespace dsc {
         unsigned nproducers;
         unsigned nconsumers;
         unsigned gen_limit;
-        unsigned active_producers = 0;
-        std::mutex producers_mutex;
+        std::atomic_uint active_producers;
         CDS<intmax_t> data_structure;
 
-        void active(int = 1);
         intmax_t consume();
         intmax_t produce(unsigned, unsigned);
     };
@@ -56,11 +57,11 @@ namespace dsc {
     template<typename... CDSArgs>
     prodcon_sum<CDS>::prodcon_sum(unsigned np, unsigned nc, unsigned limit,
                                   CDSArgs&&... args):
-      nproducers(np),
-      nconsumers(nc),
-      gen_limit(limit),
+      nproducers{np},
+      nconsumers{nc},
+      gen_limit{limit},
+      active_producers{0},
       data_structure{std::forward<CDSArgs>(args)...} {
-
     }
 
     template<template<class> class CDS>
@@ -97,17 +98,11 @@ namespace dsc {
     }
 
     template<template<class> class CDS>
-    void prodcon_sum<CDS>::active(int value) {
-        std::lock_guard<std::mutex> guard(producers_mutex);
-        active_producers += value;
-    }
-
-    template<template<class> class CDS>
     intmax_t prodcon_sum<CDS>::consume() {
         intmax_t partial_sum = 0;
         intmax_t number = 0;
         bool valid = true;
-        while (valid || active_producers > 0) {
+        while (valid || active_producers.load() > 0) {
             std::tie(number, valid) = data_structure.pop();
             if (valid) {
                 partial_sum += number;
@@ -118,17 +113,17 @@ namespace dsc {
 
     template<template<class> class CDS>
     intmax_t prodcon_sum<CDS>::produce(unsigned n_iterations, unsigned seed) {
-        active();
+        active_producers.fetch_add(1);
         std::mt19937_64 gen(seed);
         intmax_t partial_sum = 0;
 
         for (intmax_t i = 0; i < n_iterations; ++i) {
             unsigned number = gen() % gen_limit;
-            data_structure.push(number);
             partial_sum += number;
+            data_structure.push(number);
         }
 
-        active(-1);
+        active_producers.fetch_sub(1);
         return partial_sum;
     }
 }

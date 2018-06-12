@@ -40,62 +40,68 @@ namespace tds {
     // Namespace detail contains definitions that should not be used
     // outside the hazard_ptr class.
     namespace detail {
+        struct hazard_list {
+            struct entry {
+                void* pointer = nullptr;
+                entry* next = nullptr;
+                std::atomic_bool active{false};
+            };
+
+            ~hazard_list();
+
+            std::atomic<entry*> head{nullptr};
+            std::atomic_uint size{0};
+        };
         // Hazard Pointers Context:
         // Responsible for the actual memory reclamation.
         // Keeps a per thread list of 'retired' objects to be deleted
         // and a global list of 'protected' objects.
-        template<unsigned N, unsigned K>
         class hp_context {
-            // Entry used in the guard_entries.
-            // Stores each pointer as void* and uses an atomic_bool
-            // to sinalize activation and deactivation.
-            using entry = std::pair<void*, std::atomic_bool>;
          public:
             template<typename T>
             using list_type = std::vector<T>;
-            // Activates a guard entry in guard_entries
-            // and returns the corresponding id.
-            static unsigned guard() noexcept;
+            // Activates a hazard entry in hazard_entries
+            // and returns the corresponding entry reference.
+            static hazard_list::entry& acquire();
             // Protects an atomic value in the given guard_id.
             // The returned value is guaranteed to be protected.
             template<typename Ptr>
-            static Ptr protect(const std::atomic<Ptr>&, unsigned) noexcept;
+            static Ptr protect(const std::atomic<Ptr>&, unsigned);
             // Deactivates the guard entry in the passed guard_id.
-            static void release(unsigned) noexcept;
+            static void release(unsigned);
             // Scans the objects stored in retired.objects and deletes those
-            // which are not present in guard_entries.
+            // which are not present in hazard_entries.
             template<typename Ptr>
             static void scan(list_type<Ptr>&);
+
+            static unsigned size();
          private:
-            static std::array<entry, N*K> guard_entries;
+            static hazard_list hazard_entries;
         };
     }
 
-    template<typename T, unsigned N, unsigned K = 1>
+    template<typename T>
     class hazard_ptr {
-        // Limit used to decide when make a new call to scan().
-        static constexpr auto RETIRED_LIMIT = N*K*2;
         // Container to hold the retired objects.
         // It's required to ensure the deletion of retired objects
         // in the event of destruction of the owner thread.
         struct container {
-            // container();
             ~container();
-            typename detail::hp_context<N,K>::template list_type<T*> objects;
+            typename detail::hp_context::list_type<T*> objects;
         };
      public:
-        hazard_ptr() noexcept;
-        hazard_ptr(const hazard_ptr<T,N,K>&) = delete;
-        hazard_ptr(hazard_ptr<T,N,K>&&) = delete;
+        hazard_ptr();
+        hazard_ptr(const hazard_ptr<T>&) = delete;
+        hazard_ptr(hazard_ptr<T>&&) = delete;
 
-        ~hazard_ptr() noexcept;
+        ~hazard_ptr();
         // Retires a value, placing it in the retired.objects vector.
         // Also makes a call to scan() if RETIRED_LIMIT is reached.
-        static void retire(T* value_ptr) noexcept;
+        static void retire(T* value_ptr);
 
-        T* protect(const std::atomic<T*>&) noexcept;
+        T* protect(const std::atomic<T*>&);
      private:
-        unsigned guard_id;
+        detail::hazard_list::entry& hazard_entry;
         static thread_local container retired;
     };
 }

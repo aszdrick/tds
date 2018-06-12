@@ -27,27 +27,22 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 // hp_context
-template<unsigned N, unsigned K>
-std::array<typename tds::detail::hp_context<N,K>::entry, N*K>
-tds::detail::hp_context<N,K>::guard_entries;
+tds::detail::hazard_list tds::detail::hp_context::hazard_entries;
 
-template<typename T, unsigned N, unsigned K>
-thread_local typename tds::hazard_ptr<T,N,K>::container
-tds::hazard_ptr<T,N,K>::retired;
+template<typename T>
+thread_local typename tds::hazard_ptr<T>::container
+tds::hazard_ptr<T>::retired;
 
 ///////////////////////////////////////////////////////////////////////////////
-// tds::detail::hp_context<K,N>::container methods implementation
+// tds::detail::hazard_list methods implementation
 ///////////////////////////////////////////////////////////////////////////////
 
-// template<typename T, unsigned N, unsigned K>
-// tds::hazard_ptr<T,N,K>::container::container() {
-//     objects.reserve(N*K*2);
-// }
-
-template<typename T, unsigned N, unsigned K>
-tds::hazard_ptr<T,N,K>::container::~container() {
-    while (!objects.empty()) {
-        detail::hp_context<N,K>::scan(objects);
+tds::detail::hazard_list::~hazard_list() {
+    auto p = head.load(std::memory_order_relaxed);
+    while (p) {
+        auto temp = p;
+        p = p->next;
+        delete temp;
     }
 }
 
@@ -55,49 +50,35 @@ tds::hazard_ptr<T,N,K>::container::~container() {
 // tds::detail::hp_context methods implementation
 ///////////////////////////////////////////////////////////////////////////////
 
-template<unsigned N, unsigned K>
-unsigned tds::detail::hp_context<N,K>::guard() noexcept {
-    unsigned index;
-    for (index = 0; index < N*K; ++index) {
-        bool empty_entry = false;
-        if (!guard_entries[index].second.load(std::memory_order_relaxed) &&
-                guard_entries[index].second.compare_exchange_strong(
-                    empty_entry, true)) {
-            break;
+tds::detail::hazard_list::entry& tds::detail::hp_context::acquire() {
+    auto e = hazard_entries.head.load(std::memory_order_relaxed);
+    for (; e ; e = e->next) {
+        auto free = false;
+        if (e->active || !e->active.compare_exchange_strong(free, true)) {
+            continue;
         }
+        return *e;
     }
-    assert(index != N*K);
-    return index;
+
+    e = new hazard_list::entry{nullptr, hazard_entries.head};
+    e->active.store(true, std::memory_order_relaxed);
+    while(!hazard_entries.head.compare_exchange_weak(e->next, e));
+
+    hazard_entries.size.fetch_add(1);
+
+    return *e;
 }
 
-template<unsigned N, unsigned K>
-void tds::detail::hp_context<N,K>::release(unsigned index) noexcept {
-    guard_entries[index].first = nullptr;
-    guard_entries[index].second = false;
-}
-
-template<unsigned N, unsigned K>
 template<typename Ptr>
-Ptr tds::detail::hp_context<N,K>::protect(const std::atomic<Ptr>& value,
-                                          unsigned index) noexcept {
-    Ptr copy;
-    do {
-        copy = value.load(std::memory_order_relaxed);
-        guard_entries[index].first = copy;
-    } while (copy != value.load(std::memory_order_relaxed));
-    return copy;
-}
-
-template<unsigned N, unsigned K>
-template<typename Ptr>
-void tds::detail::hp_context<N,K>::scan(std::vector<Ptr>& objects) {
+void tds::detail::hp_context::scan(std::vector<Ptr>& objects) {
     std::unordered_set<Ptr> to_be_deleted(
         objects.cbegin(), objects.cend()
     );
     objects.clear();
-    for (unsigned i = 0; i < N*K; ++i) {
-        if (guard_entries[i].second.load(std::memory_order_relaxed)) {
-            auto pointer = reinterpret_cast<Ptr>(guard_entries[i].first);
+    auto e = hazard_entries.head.load(std::memory_order_relaxed);
+    for (; e; e = e->next) {
+        if (e->active.load(std::memory_order_relaxed)) {
+            auto pointer = reinterpret_cast<Ptr>(e->pointer);
             if(to_be_deleted.erase(pointer)) {
                 objects.push_back(pointer);
             }
@@ -108,29 +89,49 @@ void tds::detail::hp_context<N,K>::scan(std::vector<Ptr>& objects) {
     }
 }
 
+unsigned tds::detail::hp_context::size() {
+    return hazard_entries.size.load(std::memory_order_relaxed);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// tds::hazard_ptr::container methods implementation
+///////////////////////////////////////////////////////////////////////////////
+
+template<typename T>
+tds::hazard_ptr<T>::container::~container() {
+    while (!objects.empty()) {
+        detail::hp_context::scan(objects);
+    }
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // tds::hazard_ptr methods implementation
 ///////////////////////////////////////////////////////////////////////////////
 
-template<typename T, unsigned N, unsigned K>
-tds::hazard_ptr<T,N,K>::hazard_ptr() noexcept {
-    guard_id = detail::hp_context<N,K>::guard();
+template<typename T>
+tds::hazard_ptr<T>::hazard_ptr() :
+ hazard_entry{detail::hp_context::acquire()} { }
+
+template<typename T>
+T* tds::hazard_ptr<T>::protect(const std::atomic<T*>& value) {
+    T* copy;
+    do {
+        copy = value.load(std::memory_order_relaxed);
+        hazard_entry.pointer = copy;
+    } while (copy != value.load(std::memory_order_relaxed));
+    return copy;
 }
 
-template<typename T, unsigned N, unsigned K>
-T* tds::hazard_ptr<T,N,K>::protect(const std::atomic<T*>& value) noexcept {
-    return detail::hp_context<N,K>::protect(value, guard_id);
+template<typename T>
+tds::hazard_ptr<T>::~hazard_ptr() {
+    hazard_entry.pointer = nullptr;
+    hazard_entry.active.store(false, std::memory_order_relaxed);
 }
 
-template<typename T, unsigned N, unsigned K>
-tds::hazard_ptr<T,N,K>::~hazard_ptr() noexcept {
-    detail::hp_context<N,K>::release(guard_id);
-}
-
-template<typename T, unsigned N, unsigned K>
-void tds::hazard_ptr<T,N,K>::retire(T* obj_ptr) noexcept {
+template<typename T>
+void tds::hazard_ptr<T>::retire(T* obj_ptr) {
     retired.objects.push_back(obj_ptr);
-    if (retired.objects.size() > RETIRED_LIMIT) {
-        detail::hp_context<N,K>::scan(retired.objects);
+    if (retired.objects.size() > 2 * detail::hp_context::size()) {
+        detail::hp_context::scan(retired.objects);
     }
 }

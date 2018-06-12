@@ -30,11 +30,31 @@
 #include "tds/treiber_stack.hpp"
 
 int main(int argc, char** argv) {
-    dsc::prodcon_sum<tds::mutexed_stack> checker(
-        atoll(argv[1]), atoll(argv[2])
-    );
+    if (argc < 6) {
+        std::cout << "usage: tds-test [type] [n_producers]"
+                  << " [n_consumers] [n_iterations] [random_seed]"
+                  << std::endl;
+        return 1;
+    }
 
-    auto result = checker.run(atoll(argv[3]), atoll(argv[4]));
+    int result = -1;
+    auto type = std::string(argv[1]);
+
+    if (type == "mutexed_stack") {
+        dsc::prodcon_sum<tds::treiber_stack> checker(
+            atoll(argv[2]), atoll(argv[3])
+        );
+
+        result = checker.run(atoll(argv[4]), atoll(argv[5]));
+    } else if (type == "treiber_stack") {
+        dsc::prodcon_sum<tds::treiber_stack> checker(
+            atoll(argv[2]), atoll(argv[3])
+        );
+
+        result = checker.run(atoll(argv[4]), atoll(argv[5]));
+    }
+
 
     std::cout << result << std::endl;
+    return result;
 }
