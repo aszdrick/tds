@@ -22,38 +22,42 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 // IN THE SOFTWARE.
 
-#ifndef __DSC_PRODCON_SUM_HPP__
-#define __DSC_PRODCON_SUM_HPP__
+#ifndef __DSC_PRODCON_PRECISE_HPP__
+#define __DSC_PRODCON_PRECISE_HPP__
 
 #include <atomic>
 #include <cstdint>
 #include <future>
 #include <mutex>
 #include <random>
+#include <unordered_map>
 
 // Data Structure Checkers
 namespace dsc {
-    // Producer-Consumer sum verification
+    // Producer-Consumer precise verification
     template<template<class> class CDS>
-    class prodcon_sum {
+    class prodcon_precise {
+        using CType = std::unordered_map<unsigned, uintmax_t>;
      public:
+        ~prodcon_precise() = default;
+
         template<typename... CDSArgs>
-        prodcon_sum(unsigned, unsigned, unsigned = 100, CDSArgs&&...);
+        prodcon_precise(unsigned, unsigned, unsigned = 100, CDSArgs&&...);
         bool run(unsigned, unsigned);
      private:
         unsigned nproducers;
         unsigned nconsumers;
         unsigned gen_limit;
         std::atomic_uint active_producers;
-        CDS<intmax_t> data_structure;
+        CDS<unsigned> data_structure;
 
-        intmax_t consume();
-        intmax_t produce(unsigned, unsigned);
+        CType consume();
+        CType produce(unsigned, unsigned);
     };
 
     template<template<class> class CDS>
     template<typename... CDSArgs>
-    prodcon_sum<CDS>::prodcon_sum(unsigned np, unsigned nc, unsigned limit,
+    prodcon_precise<CDS>::prodcon_precise(unsigned np, unsigned nc, unsigned limit,
                                   CDSArgs&&... args):
       nproducers{np},
       nconsumers{nc},
@@ -63,11 +67,11 @@ namespace dsc {
     }
 
     template<template<class> class CDS>
-    bool prodcon_sum<CDS>::run(unsigned n_iterations, unsigned seed) {
-        std::vector<std::future<intmax_t>> producer_futures(nproducers);
-        std::vector<std::future<intmax_t>> consumer_futures(nconsumers);
-        intmax_t consumer_total_sum = 0;
-        intmax_t producer_total_sum = 0;
+    bool prodcon_precise<CDS>::run(unsigned n_iterations, unsigned seed) {
+        std::vector<std::future<CType>> producer_futures(nproducers);
+        std::vector<std::future<CType>> consumer_futures(nconsumers);
+        CType producer_counters;
+        CType consumer_counters;
 
         for (unsigned i = 0; i < std::max(nconsumers, nproducers); ++i) {
             if (i < nproducers) {
@@ -84,47 +88,69 @@ namespace dsc {
             }
         }
 
-        for (auto& future : consumer_futures) {
-            consumer_total_sum += future.get();
+        for (unsigned i = 0; i < producer_futures.size(); ++i) {
+            auto counters = producer_futures[i].get();
+            for (auto counter : counters) {
+                if (!producer_counters.count(counter.first)) {
+                    producer_counters[counter.first] = counter.second;
+                } else {
+                    producer_counters[counter.first] += counter.second;
+                }
+            }
         }
 
-        for (auto& future : producer_futures) {
-            producer_total_sum += future.get();
+        for (unsigned i = 0; i < consumer_futures.size(); ++i) {
+            auto counters = consumer_futures[i].get();
+            for (auto counter : counters) {
+                if (!consumer_counters.count(counter.first)) {
+                    consumer_counters[counter.first] = counter.second;
+                } else {
+                    consumer_counters[counter.first] += counter.second;
+                }
+            }
         }
-
-        return consumer_total_sum == producer_total_sum;
+        return producer_counters == consumer_counters;
     }
 
     template<template<class> class CDS>
-    intmax_t prodcon_sum<CDS>::consume() {
-        intmax_t partial_sum = 0;
-        intmax_t number = 0;
+    typename prodcon_precise<CDS>::CType prodcon_precise<CDS>::consume() {
+        CType counters;
+        unsigned number = 0;
         bool valid = true;
         while(active_producers.load() == 0); // valgrind doesn't like that
         while (valid || active_producers.load() > 0) {
             std::tie(number, valid) = data_structure.pop();
             if (valid) {
-                partial_sum += number;
+                if (!counters.count(number)) {
+                    counters[number] = 1;
+                } else {
+                    counters[number] += 1;
+                }
             }
         }
-        return partial_sum;
+        return counters;
     }
 
     template<template<class> class CDS>
-    intmax_t prodcon_sum<CDS>::produce(unsigned n_iterations, unsigned seed) {
+    typename prodcon_precise<CDS>::CType prodcon_precise<CDS>::produce(
+                                        unsigned n_iterations, unsigned seed) {
         active_producers.fetch_add(1);
         std::mt19937_64 gen(seed);
-        intmax_t partial_sum = 0;
+        CType counters;
 
-        for (intmax_t i = 0; i < n_iterations; ++i) {
+        for (unsigned i = 0; i < n_iterations; ++i) {
             unsigned number = gen() % gen_limit;
-            partial_sum += number;
             data_structure.push(number);
+            if (!counters.count(number)) {
+                counters[number] = 1;
+            } else {
+                counters[number] += 1;
+            }
         }
 
         active_producers.fetch_sub(1);
-        return partial_sum;
+        return counters;
     }
 }
 
-#endif /* __DSC_PRODCON_SUM_HPP__ */
+#endif /* __DSC_PRODCON_PRECISE_HPP__ */

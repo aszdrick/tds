@@ -26,6 +26,7 @@
 #include <iostream>
 
 #include "dsc/prodcon_sum.hpp"
+#include "dsc/prodcon_precise.hpp"
 #include "tds/mutexed_stack.hpp"
 #include "tds/treiber_stack.hpp"
 
@@ -41,13 +42,13 @@ int main(int argc, char** argv) {
     auto type = std::string(argv[1]);
 
     if (type == "mutexed_stack") {
-        dsc::prodcon_sum<tds::treiber_stack> checker(
+        dsc::prodcon_precise<tds::mutexed_stack> checker(
             atoll(argv[2]), atoll(argv[3])
         );
 
         result = checker.run(atoll(argv[4]), atoll(argv[5]));
     } else if (type == "treiber_stack") {
-        dsc::prodcon_sum<tds::treiber_stack> checker(
+        dsc::prodcon_precise<tds::treiber_stack> checker(
             atoll(argv[2]), atoll(argv[3])
         );
 

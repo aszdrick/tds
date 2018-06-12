@@ -22,6 +22,7 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 // IN THE SOFTWARE.
 
+
 template<typename VT>
 tds::treiber_stack<VT>::~treiber_stack() {
     auto curr = top.load();

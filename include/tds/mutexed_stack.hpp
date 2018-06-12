@@ -45,10 +45,16 @@ namespace tds {
      public:
         using value_type = VT;
 
+        ~mutexed_stack() {
+            std::cout << "size = " << inner_stack.size() << std::endl;
+        }
+
         void push(const value_type&);
         void push(value_type&&);
 
         std::pair<value_type, bool> pop();
+
+        auto size() { return inner_stack.size(); }
      private:
         std::mutex mutex;
         std::stack<VT> inner_stack;
