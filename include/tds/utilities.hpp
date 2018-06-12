@@ -22,54 +22,27 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 // IN THE SOFTWARE.
 
+#ifndef __TDS_UTILITIES_HPP__
+#define __TDS_UTILITIES_HPP__
 
-template<typename VT>
-tds::treiber_stack<VT>::~treiber_stack() {
-    auto curr = top.load();
-    while(curr) {
-        auto temp = curr->next;
-        delete curr;
-        curr = temp;
-    }
-}
+namespace tds {
+    class thread_barrier {
+     public:
+        explicit thread_barrier(size_t count) : counter{count} { }
 
-template<typename VT>
-void tds::treiber_stack<VT>::push(const value_type& value) noexcept {
-    auto newtop = new tds::treiber_stack<VT>::node{value};
-    newtop->next = top;
-
-    while (!top.compare_exchange_weak(newtop->next, newtop));
-    size_counter.fetch_add(1);
-}
-
-template<typename VT>
-void tds::treiber_stack<VT>::push(value_type&& value) noexcept {
-    auto newtop = new tds::treiber_stack<VT>::node{std::move(value)};
-    newtop->next = top;
-
-    while (!top.compare_exchange_weak(newtop->next, newtop));
-    size_counter.fetch_add(1);
-}
-
-template<typename VT>
-std::pair<VT, bool> tds::treiber_stack<VT>::pop() {
-    node* old_top;
-    {
-        hazard_ptr<node> guard;
-        while (true) {
-            old_top = guard.protect(top);
-            if (!old_top) {
-                return {value_type(), false};
-            }
-
-            if(top.compare_exchange_weak(old_top, old_top->next,
-               std::memory_order_acquire, std::memory_order_relaxed)) {
-                break;
+        void wait() {
+            std::unique_lock<std::mutex> lock{mutex};
+            if (--counter == 0) {
+                cv.notify_all();
+            } else {
+                cv.wait(lock, [this] { return counter == 0; });
             }
         }
-    }
-    auto data = old_top->value;
-    hazard_ptr<node>::retire(old_top);
-    size_counter.fetch_add(-1);
-    return {data, true};
+     private:
+        std::mutex mutex;
+        std::condition_variable cv;
+        std::size_t counter;
+    };
 }
+
+#endif /* __TDS_UTILITIES_HPP__ */

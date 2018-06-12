@@ -44,6 +44,8 @@ namespace tds {
         void push(value_type&&) noexcept;
 
         std::pair<value_type, bool> pop();
+
+        uintmax_t size() { return size_counter.load(); }
      private:
         struct node {
             value_type value;
@@ -51,7 +53,7 @@ namespace tds {
         };
 
         std::atomic<node*> top{nullptr};
-        std::atomic_uintmax_t size{0};
+        std::atomic_uintmax_t size_counter{0};
     };
 }
 

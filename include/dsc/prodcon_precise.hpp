@@ -32,6 +32,8 @@
 #include <random>
 #include <unordered_map>
 
+#include "tds/utilities.hpp"
+
 // Data Structure Checkers
 namespace dsc {
     // Producer-Consumer precise verification
@@ -41,14 +43,14 @@ namespace dsc {
      public:
         ~prodcon_precise() = default;
 
-        template<typename... CDSArgs>
-        prodcon_precise(unsigned, unsigned, unsigned = 100, CDSArgs&&...);
+        prodcon_precise(unsigned, unsigned, unsigned = 100);
         bool run(unsigned, unsigned);
      private:
         unsigned nproducers;
         unsigned nconsumers;
         unsigned gen_limit;
-        std::atomic_uint active_producers;
+        std::atomic_int active_producers;
+        tds::thread_barrier barrier;
         CDS<unsigned> data_structure;
 
         CType consume();
@@ -56,15 +58,12 @@ namespace dsc {
     };
 
     template<template<class> class CDS>
-    template<typename... CDSArgs>
-    prodcon_precise<CDS>::prodcon_precise(unsigned np, unsigned nc, unsigned limit,
-                                  CDSArgs&&... args):
+    prodcon_precise<CDS>::prodcon_precise(unsigned np, unsigned nc, unsigned limit):
       nproducers{np},
       nconsumers{nc},
       gen_limit{limit},
       active_producers{0},
-      data_structure{std::forward<CDSArgs>(args)...} {
-    }
+      barrier{np+nc} { }
 
     template<template<class> class CDS>
     bool prodcon_precise<CDS>::run(unsigned n_iterations, unsigned seed) {
@@ -73,19 +72,18 @@ namespace dsc {
         CType producer_counters;
         CType consumer_counters;
 
-        for (unsigned i = 0; i < std::max(nconsumers, nproducers); ++i) {
-            if (i < nproducers) {
-                producer_futures[i] = std::async(
-                    [this](unsigned n_iterations, unsigned seed) {
-                        return this->produce(n_iterations, seed);
-                    }, n_iterations, seed
-                );
-            }
-            if (i < nconsumers) {
-                consumer_futures[i] = std::async([this]() {
-                    return this->consume();
-                });
-            }
+        for (unsigned i = 0; i < nproducers; ++i) {
+            producer_futures[i] = std::async(
+                [this](unsigned n_iterations, unsigned seed) {
+                    return this->produce(n_iterations, seed);
+                }, n_iterations, seed
+            );
+        }
+
+        for (unsigned i = 0; i < nconsumers; ++i) {
+            consumer_futures[i] = std::async([this]() {
+                return this->consume();
+            });
         }
 
         for (unsigned i = 0; i < producer_futures.size(); ++i) {
@@ -117,8 +115,14 @@ namespace dsc {
         CType counters;
         unsigned number = 0;
         bool valid = true;
-        while(active_producers.load() == 0); // valgrind doesn't like that
-        while (valid || active_producers.load() > 0) {
+
+        // while(active_producers == 0) {
+        //     std::this_thread::yield();
+        // }
+
+        barrier.wait();
+
+        while (valid || active_producers > 0) {
             std::tie(number, valid) = data_structure.pop();
             if (valid) {
                 if (!counters.count(number)) {
@@ -134,10 +138,14 @@ namespace dsc {
     template<template<class> class CDS>
     typename prodcon_precise<CDS>::CType prodcon_precise<CDS>::produce(
                                         unsigned n_iterations, unsigned seed) {
-        active_producers.fetch_add(1);
         std::mt19937_64 gen(seed);
         CType counters;
 
+
+        active_producers.fetch_add(1);
+
+        barrier.wait();
+        
         for (unsigned i = 0; i < n_iterations; ++i) {
             unsigned number = gen() % gen_limit;
             data_structure.push(number);
@@ -147,8 +155,8 @@ namespace dsc {
                 counters[number] += 1;
             }
         }
-
         active_producers.fetch_sub(1);
+
         return counters;
     }
 }

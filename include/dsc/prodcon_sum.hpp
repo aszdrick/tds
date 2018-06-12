@@ -37,8 +37,7 @@ namespace dsc {
     template<template<class> class CDS>
     class prodcon_sum {
      public:
-        template<typename... CDSArgs>
-        prodcon_sum(unsigned, unsigned, unsigned = 100, CDSArgs&&...);
+        prodcon_sum(unsigned, unsigned, unsigned = 100);
         bool run(unsigned, unsigned);
      private:
         unsigned nproducers;
@@ -52,14 +51,11 @@ namespace dsc {
     };
 
     template<template<class> class CDS>
-    template<typename... CDSArgs>
-    prodcon_sum<CDS>::prodcon_sum(unsigned np, unsigned nc, unsigned limit,
-                                  CDSArgs&&... args):
+    prodcon_sum<CDS>::prodcon_sum(unsigned np, unsigned nc, unsigned limit):
       nproducers{np},
       nconsumers{nc},
       gen_limit{limit},
-      active_producers{0},
-      data_structure{std::forward<CDSArgs>(args)...} {
+      active_producers{0} {
     }
 
     template<template<class> class CDS>
