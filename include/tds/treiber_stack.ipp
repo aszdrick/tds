@@ -34,21 +34,13 @@ tds::treiber_stack<VT>::~treiber_stack() {
 }
 
 template<typename VT>
-void tds::treiber_stack<VT>::push(const value_type& value) {
+void tds::treiber_stack<VT>::push(value_type value) {
     auto newtop = new tds::treiber_stack<VT>::node{value};
     newtop->next = top;
 
-    while (!top.compare_exchange_weak(newtop->next, newtop));
-    size_counter.fetch_add(1);
-}
-
-template<typename VT>
-void tds::treiber_stack<VT>::push(value_type&& value) {
-    auto newtop = new tds::treiber_stack<VT>::node{std::move(value)};
-    newtop->next = top;
-
-    while (!top.compare_exchange_weak(newtop->next, newtop));
-    size_counter.fetch_add(1);
+    while (!top.compare_exchange_weak(newtop->next, newtop,
+            std::memory_order_acq_rel, std::memory_order_relaxed));
+    size_counter.fetch_add(1, std::memory_order_release);
 }
 
 template<typename VT>
@@ -63,18 +55,18 @@ std::pair<VT, bool> tds::treiber_stack<VT>::pop() {
             }
 
             if(top.compare_exchange_weak(old_top, old_top->next,
-               std::memory_order_acquire, std::memory_order_relaxed)) {
+               std::memory_order_acq_rel, std::memory_order_relaxed)) {
                 break;
             }
         }
     }
     auto data = old_top->value;
     hazard_ptr<node>::retire(old_top);
-    size_counter.fetch_add(-1);
+    size_counter.fetch_sub(1, std::memory_order_release);
     return {data, true};
 }
 
 template<typename VT>
 size_t tds::treiber_stack<VT>::size() const {
-    return size_counter.load();
+    return size_counter.load(std::memory_order_acq_rel);
 }

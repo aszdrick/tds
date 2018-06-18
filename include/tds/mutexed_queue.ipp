@@ -27,13 +27,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 template<typename VT>
-void tds::mutexed_queue<VT>::push(const value_type& value) {
-    std::lock_guard<std::mutex> guard(mutex);
-    inner_queue.push(value);
-}
-
-template<typename VT>
-void tds::mutexed_queue<VT>::push(value_type&& value) {
+void tds::mutexed_queue<VT>::push(value_type value) {
     std::lock_guard<std::mutex> guard(mutex);
     inner_queue.push(std::move(value));
 }
@@ -60,7 +54,7 @@ size_t tds::mutexed_queue<VT>::size() const {
 
 template<typename VT>
 tds::dual_mutex_queue<VT>::dual_mutex_queue() {
-    head = new node{VT(), nullptr};;
+    head = new node{VT(), nullptr};
     tail = head;
 }
 
@@ -75,16 +69,7 @@ tds::dual_mutex_queue<VT>::~dual_mutex_queue() {
 }
 
 template<typename VT>
-void tds::dual_mutex_queue<VT>::push(const value_type& value) {
-    std::lock_guard<std::mutex> guard(push_mutex);
-    auto new_node = new node{value, nullptr};
-    tail->next = new_node;
-    tail = new_node;
-    size_counter.fetch_add(1);
-}
-
-template<typename VT>
-void tds::dual_mutex_queue<VT>::push(value_type&& value) {
+void tds::dual_mutex_queue<VT>::push(value_type value) {
     std::lock_guard<std::mutex> guard(push_mutex);
     auto new_node = new node{std::move(value), nullptr};
     tail->next = new_node;

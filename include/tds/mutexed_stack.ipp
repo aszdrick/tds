@@ -23,13 +23,7 @@
 // IN THE SOFTWARE.
 
 template<typename VT>
-void tds::mutexed_stack<VT>::push(const value_type& value) {
-    std::lock_guard<std::mutex> guard(mutex);
-    inner_stack.push(value);
-}
-
-template<typename VT>
-void tds::mutexed_stack<VT>::push(value_type&& value) {
+void tds::mutexed_stack<VT>::push(value_type value) {
     std::lock_guard<std::mutex> guard(mutex);
     inner_stack.push(std::move(value));
 }

@@ -22,16 +22,16 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 // IN THE SOFTWARE.
 
-template<template<class> class CDS>
-dsc::prodcon_sum<CDS>::prodcon_sum(unsigned np, unsigned nc, unsigned limit) :
+template<template<class> class DS>
+dsc::prodcon_sum<DS>::prodcon_sum(unsigned np, unsigned nc, unsigned limit) :
   nproducers{np},
   nconsumers{nc},
   gen_limit{limit},
-  active_producers{0} {
+  active{np} {
 }
 
-template<template<class> class CDS>
-bool dsc::prodcon_sum<CDS>::run(unsigned n_iterations, unsigned seed) {
+template<template<class> class DS>
+bool dsc::prodcon_sum<DS>::run(unsigned n_iterations, unsigned seed) {
     std::vector<std::future<intmax_t>> producer_futures(nproducers);
     std::vector<std::future<intmax_t>> consumer_futures(nconsumers);
     intmax_t consumer_total_sum = 0;
@@ -60,21 +60,17 @@ bool dsc::prodcon_sum<CDS>::run(unsigned n_iterations, unsigned seed) {
         producer_total_sum += future.get();
     }
 
+    active.store(nproducers, std::memory_order_relaxed);
     return consumer_total_sum == producer_total_sum;
 }
 
-template<template<class> class CDS>
-intmax_t dsc::prodcon_sum<CDS>::consume() {
+template<template<class> class DS> intmax_t dsc::prodcon_sum<DS>::consume() {
     intmax_t partial_sum = 0;
     intmax_t number = 0;
     bool valid = true;
 
-    // TODO: investigate why sometimes it stucks inside this loop
-    // while(active_producers.load(std::memory_order_relaxed) == 0) {
-    //     std::this_thread::yield();
-    // }
-    while (valid || active_producers.load(std::memory_order_relaxed) > 0) {
-        std::tie(number, valid) = data_structure.pop();
+    while (valid || active.load(std::memory_order_relaxed) || data.size()) {
+        std::tie(number, valid) = data.pop();
         if (valid) {
             partial_sum += number;
         }
@@ -82,18 +78,18 @@ intmax_t dsc::prodcon_sum<CDS>::consume() {
     return partial_sum;
 }
 
-template<template<class> class CDS>
-intmax_t dsc::prodcon_sum<CDS>::produce(unsigned n_iterations, unsigned seed) {
-    active_producers.fetch_add(1);
+template<template<class> class DS>
+intmax_t dsc::prodcon_sum<DS>::produce(unsigned n_iterations, unsigned seed) {
+    active.fetch_add(1);
     std::mt19937_64 gen(seed);
     intmax_t partial_sum = 0;
 
     for (intmax_t i = 0; i < n_iterations; ++i) {
         unsigned number = gen() % gen_limit;
         partial_sum += number;
-        data_structure.push(number);
+        data.push(number);
     }
 
-    active_producers.fetch_sub(1);
+    active.fetch_sub(1);
     return partial_sum;
 }

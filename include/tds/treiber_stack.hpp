@@ -40,12 +40,10 @@ namespace tds {
 
         ~treiber_stack();
 
-        void push(const value_type&);
-        void push(value_type&&);
-
+        void push(value_type);
         std::pair<value_type, bool> pop();
-
         size_t size() const;
+
      private:
         struct node {
             value_type value;

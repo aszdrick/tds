@@ -33,7 +33,7 @@
 // Data Structure Checkers
 namespace dsc {
     // Producer-Consumer sum verification
-    template<template<class> class CDS>
+    template<template<class> class DS>
     class prodcon_sum {
      public:
         prodcon_sum(unsigned, unsigned, unsigned = 100);
@@ -42,8 +42,8 @@ namespace dsc {
         unsigned nproducers;
         unsigned nconsumers;
         unsigned gen_limit;
-        std::atomic_uint active_producers;
-        CDS<intmax_t> data_structure;
+        std::atomic_uint active;
+        DS<intmax_t> data;
 
         intmax_t consume();
         intmax_t produce(unsigned, unsigned);

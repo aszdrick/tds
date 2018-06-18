@@ -39,11 +39,8 @@ namespace tds {
      public:
         using value_type = VT;
 
-        void push(const value_type&);
-        void push(value_type&&);
-
+        void push(value_type);
         std::pair<value_type, bool> pop();
-
         size_t size() const;
      private:
         std::mutex mutex;
@@ -63,11 +60,8 @@ namespace tds {
         dual_mutex_queue();
         ~dual_mutex_queue();
 
-        void push(const value_type&);
-        void push(value_type&&);
-
+        void push(value_type);
         std::pair<value_type, bool> pop();
-
         size_t size() const;
      private:
         std::mutex push_mutex;

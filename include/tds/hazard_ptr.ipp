@@ -62,7 +62,8 @@ tds::detail::hazard_list::entry& tds::detail::hp_context::acquire() {
 
     e = new hazard_list::entry{nullptr, hazard_entries.head};
     e->active.store(true, std::memory_order_relaxed);
-    while(!hazard_entries.head.compare_exchange_weak(e->next, e));
+    while(!hazard_entries.head.compare_exchange_weak(e->next, e,
+           std::memory_order_acq_rel, std::memory_order_relaxed));
 
     hazard_entries.size.fetch_add(1);
 
@@ -90,7 +91,7 @@ void tds::detail::hp_context::scan(std::vector<Ptr>& objects) {
 }
 
 unsigned tds::detail::hp_context::size() {
-    return hazard_entries.size.load(std::memory_order_relaxed);
+    return hazard_entries.size.load(std::memory_order_acquire);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

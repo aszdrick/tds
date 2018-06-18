@@ -23,16 +23,16 @@
 // IN THE SOFTWARE.
 
 
-template<template<class> class CDS>
-dsc::prodcon_precise<CDS>::prodcon_precise(unsigned np, unsigned nc,
-                                      unsigned limit) :
+template<template<class> class DS>
+dsc::prodcon_precise<DS>::prodcon_precise(unsigned np, unsigned nc,
+                                          unsigned limit) :
  nproducers{np},
  nconsumers{nc},
  gen_limit{limit},
- active_producers{0} { }
+ active{np} { }
 
-template<template<class> class CDS>
-bool dsc::prodcon_precise<CDS>::run(unsigned n_iterations, unsigned seed) {
+template<template<class> class DS>
+bool dsc::prodcon_precise<DS>::run(unsigned n_iterations, unsigned seed) {
     std::vector<std::future<CType>> producer_futures;
     std::vector<std::future<CType>> consumer_futures;
     CType producer_counters;
@@ -42,16 +42,13 @@ bool dsc::prodcon_precise<CDS>::run(unsigned n_iterations, unsigned seed) {
         producer_futures.emplace_back(std::async(std::launch::async,
             [this](unsigned n_iterations, unsigned seed) {
                 return this->produce(n_iterations, seed);
-            },
-            n_iterations, seed
+            }, n_iterations, seed
         ));
     }
 
     for (unsigned i = 0; i < nconsumers; ++i) {
         consumer_futures.emplace_back(std::async(std::launch::async,
-            [this]() {
-                return this->consume();
-            }
+            [this]() { return this->consume(); }
         ));
     }
 
@@ -75,23 +72,18 @@ bool dsc::prodcon_precise<CDS>::run(unsigned n_iterations, unsigned seed) {
         }
     }
 
+    active.store(nproducers, std::memory_order_relaxed);
     return producer_counters == consumer_counters;
 }
 
-template<template<class> class CDS>
-typename dsc::prodcon_precise<CDS>::CType
-dsc::prodcon_precise<CDS>::consume() {
+template<template<class> class DS>
+typename dsc::prodcon_precise<DS>::CType dsc::prodcon_precise<DS>::consume() {
     CType counters;
     unsigned number = 0;
     bool valid = true;
 
-    // TODO: investigate why sometimes it stucks inside this loop
-    // while(active_producers.load(std::memory_order_relaxed) == 0) {
-    //     std::this_thread::yield();
-    // }
-
-    while (valid || active_producers.load(std::memory_order_relaxed) > 0) {
-        std::tie(number, valid) = data_structure.pop();
+    while (valid || active.load(std::memory_order_relaxed) || data.size()) {
+        std::tie(number, valid) = data.pop();
         if (valid) {
             if (!counters.count(number)) {
                 counters[number] = 1;
@@ -103,24 +95,22 @@ dsc::prodcon_precise<CDS>::consume() {
     return counters;
 }
 
-template<template<class> class CDS>
-typename dsc::prodcon_precise<CDS>::CType
-dsc::prodcon_precise<CDS>::produce(unsigned n_iterations, unsigned seed) {
+template<template<class> class DS>
+typename dsc::prodcon_precise<DS>::CType
+dsc::prodcon_precise<DS>::produce(unsigned n_iterations, unsigned seed) {
     std::mt19937_64 gen(seed);
     CType counters;
-
-    active_producers.fetch_add(1);
     
     for (unsigned i = 0; i < n_iterations; ++i) {
         unsigned number = gen() % gen_limit;
-        data_structure.push(number);
+        data.push(number);
         if (!counters.count(number)) {
             counters[number] = 1;
         } else {
             counters[number] += 1;
         }
     }
-    active_producers.fetch_sub(1);
+    active.fetch_sub(1);
 
     return counters;
 }

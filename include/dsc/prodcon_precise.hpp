@@ -34,18 +34,19 @@
 // Data Structure Checkers
 namespace dsc {
     // Producer-Consumer precise verification
-    template<template<class> class CDS>
+    template<template<class> class DS>
     class prodcon_precise {
         using CType = std::unordered_map<unsigned, uintmax_t>;
      public:
         prodcon_precise(unsigned, unsigned, unsigned = 100);
+
         bool run(unsigned, unsigned);
      private:
         unsigned nproducers;
         unsigned nconsumers;
         unsigned gen_limit;
-        std::atomic_int active_producers;
-        CDS<unsigned> data_structure;
+        std::atomic_uint active;
+        DS<unsigned> data;
 
         CType consume();
         CType produce(unsigned, unsigned);

@@ -62,7 +62,6 @@ void execute(unsigned np, unsigned nc, unsigned ni, unsigned s, unsigned m) {
         std::cout << "No errors found!" << std::endl;
     } else {
         std::cout << "Execution ended with inconsistent state." << std::endl;
-        exit(1);
     }
 }
 
