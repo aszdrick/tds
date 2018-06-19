@@ -32,7 +32,7 @@
 #include "smr/hazard_ptr.hpp"
 
 // Thread-safe Data Structures - Lock-Free
-namespace tds::lf {
+namespace tds { namespace lf {
     template<typename VT>
     class queue {
      public:
@@ -54,7 +54,7 @@ namespace tds::lf {
         std::atomic<node*> tail{nullptr};
         std::atomic_size_t size_counter{0};
     };
-}
+}}
 
 #include "queue.ipp"
 

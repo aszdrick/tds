@@ -32,7 +32,7 @@
 #include "smr/hazard_ptr.hpp"
 
 // Thread-safe Data Structures - Lock-Free
-namespace tds::lf {
+namespace tds { namespace lf {
     template<typename VT>
     class stack {
      public:
@@ -53,7 +53,7 @@ namespace tds::lf {
         std::atomic<node*> top{nullptr};
         std::atomic_size_t size_counter{0};
     };
-}
+}}
 
 #include "stack.ipp"
 

@@ -31,7 +31,7 @@
 #include <utility>
 
 // Thread-safe Data Structures - Lock-Based
-namespace tds::lb {
+namespace tds {namespace lb {
     // Stack with global mutex
     template<typename VT>
     class stack {
@@ -45,7 +45,7 @@ namespace tds::lb {
         std::mutex mutex;
         std::stack<VT> inner_stack;
     };
-}
+}}
 
 #include "stack.ipp"
 

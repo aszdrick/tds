@@ -32,7 +32,7 @@
 #include <utility>
 
 // Thread-safe Data Structures - Lock-Based
-namespace tds::lb {
+namespace tds { namespace lb {
     // Queue with global mutex
     template<typename VT>
     class queue {
@@ -70,7 +70,7 @@ namespace tds::lb {
         node* head;
         node *tail;
     };
-}
+}}
 
 #include "queue.ipp"
 
