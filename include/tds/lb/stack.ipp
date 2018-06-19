@@ -22,39 +22,24 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 // IN THE SOFTWARE.
 
-#ifndef __TDS_TREIBER_STACK_HPP__
-#define __TDS_TREIBER_STACK_HPP__
-
-#include <atomic>
-#include <memory>
-#include <utility>
-
-#include "tds/hazard_ptr.hpp"
-
-// Thread-safe Data Structures
-namespace tds {
-    template<typename VT>
-    class treiber_stack {
-     public:
-        using value_type = VT;
-
-        ~treiber_stack();
-
-        void push(value_type);
-        std::pair<value_type, bool> pop();
-        size_t size() const;
-
-     private:
-        struct node {
-            value_type value;
-            node* next;
-        };
-
-        std::atomic<node*> top{nullptr};
-        std::atomic_size_t size_counter{0};
-    };
+template<typename VT>
+void tds::lb::stack<VT>::push(value_type value) {
+    std::lock_guard<std::mutex> guard(mutex);
+    inner_stack.push(std::move(value));
 }
 
-#include "treiber_stack.ipp"
+template<typename VT>
+std::pair<VT, bool> tds::lb::stack<VT>::pop() {
+    std::lock_guard<std::mutex> guard(mutex);
+    if (!inner_stack.empty()) {
+        auto temp = inner_stack.top();
+        inner_stack.pop();
+        return {temp, true};
+    }
+    return {0, false};
+}
 
-#endif /* __TDS_TREIBER_STACK_HPP__ */
+template<typename VT>
+size_t tds::lb::stack<VT>::size() const { 
+    return inner_stack.size();
+}

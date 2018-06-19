@@ -22,51 +22,39 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 // IN THE SOFTWARE.
 
+#ifndef __TDS_LF_STACK_HPP__
+#define __TDS_LF_STACK_HPP__
 
-template<typename VT>
-tds::treiber_stack<VT>::~treiber_stack() {
-    auto curr = top.load();
-    while(curr) {
-        auto temp = curr->next;
-        delete curr;
-        curr = temp;
-    }
+#include <atomic>
+#include <memory>
+#include <utility>
+
+#include "smr/hazard_ptr.hpp"
+
+// Thread-safe Data Structures - Lock-Free
+namespace tds::lf {
+    template<typename VT>
+    class stack {
+     public:
+        using value_type = VT;
+
+        ~stack();
+
+        void push(value_type);
+        std::pair<value_type, bool> pop();
+        size_t size() const;
+
+     private:
+        struct node {
+            value_type value;
+            node* next;
+        };
+
+        std::atomic<node*> top{nullptr};
+        std::atomic_size_t size_counter{0};
+    };
 }
 
-template<typename VT>
-void tds::treiber_stack<VT>::push(value_type value) {
-    auto newtop = new tds::treiber_stack<VT>::node{value};
-    newtop->next = top;
+#include "stack.ipp"
 
-    while (!top.compare_exchange_weak(newtop->next, newtop,
-            std::memory_order_acq_rel, std::memory_order_relaxed));
-    size_counter.fetch_add(1, std::memory_order_release);
-}
-
-template<typename VT>
-std::pair<VT, bool> tds::treiber_stack<VT>::pop() {
-    node* old_top;
-    {
-        hazard_ptr<node> guard;
-        while (true) {
-            old_top = guard.protect(top);
-            if (!old_top) {
-                return {value_type(), false};
-            }
-
-            if(top.compare_exchange_weak(old_top, old_top->next,
-               std::memory_order_acq_rel, std::memory_order_relaxed)) {
-                break;
-            }
-        }
-    }
-    auto data = old_top->value;
-    hazard_ptr<node>::retire(old_top);
-    size_counter.fetch_sub(1, std::memory_order_release);
-    return {data, true};
-}
-
-template<typename VT>
-size_t tds::treiber_stack<VT>::size() const {
-    return size_counter.load(std::memory_order_acq_rel);
-}
+#endif /* __TDS_LF_STACK_HPP__ */

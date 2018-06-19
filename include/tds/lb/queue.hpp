@@ -22,19 +22,20 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 // IN THE SOFTWARE.
 
-#ifndef __TDS_MUTEXED_STACK_HPP__
-#define __TDS_MUTEXED_STACK_HPP__
+#ifndef __TDS_LB_QUEUE_HPP__
+#define __TDS_LB_QUEUE_HPP__
 
+#include <atomic>
 #include <memory>
 #include <mutex>
-#include <stack>
+#include <queue>
 #include <utility>
 
-// Thread-safe Data Structures
-namespace tds {
-    // Stack with global mutex
+// Thread-safe Data Structures - Lock-Based
+namespace tds::lb {
+    // Queue with global mutex
     template<typename VT>
-    class mutexed_stack {
+    class queue {
      public:
         using value_type = VT;
 
@@ -43,10 +44,34 @@ namespace tds {
         size_t size() const;
      private:
         std::mutex mutex;
-        std::stack<VT> inner_stack;
+        std::queue<VT> inner_queue;
+    };
+
+    // Queue with one mutex to push and another to pop
+    template<typename VT>
+    class dual_lock_queue {
+        struct node {
+            VT value;
+            node* next;
+        };
+     public:
+        using value_type = VT;
+
+        dual_lock_queue();
+        ~dual_lock_queue();
+
+        void push(value_type);
+        std::pair<value_type, bool> pop();
+        size_t size() const;
+     private:
+        std::mutex push_mutex;
+        std::mutex pop_mutex;
+        std::atomic_size_t size_counter{0};
+        node* head;
+        node *tail;
     };
 }
 
-#include "mutexed_stack.ipp"
+#include "queue.ipp"
 
-#endif /* __TDS_MUTEXED_STACK_HPP__ */
+#endif /* __TDS_LB_QUEUE_HPP__ */

@@ -22,24 +22,31 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 // IN THE SOFTWARE.
 
-template<typename VT>
-void tds::mutexed_stack<VT>::push(value_type value) {
-    std::lock_guard<std::mutex> guard(mutex);
-    inner_stack.push(std::move(value));
+#ifndef __TDS_LB_STACK_HPP__
+#define __TDS_LB_STACK_HPP__
+
+#include <memory>
+#include <mutex>
+#include <stack>
+#include <utility>
+
+// Thread-safe Data Structures - Lock-Based
+namespace tds::lb {
+    // Stack with global mutex
+    template<typename VT>
+    class stack {
+     public:
+        using value_type = VT;
+
+        void push(value_type);
+        std::pair<value_type, bool> pop();
+        size_t size() const;
+     private:
+        std::mutex mutex;
+        std::stack<VT> inner_stack;
+    };
 }
 
-template<typename VT>
-std::pair<VT, bool> tds::mutexed_stack<VT>::pop() {
-    std::lock_guard<std::mutex> guard(mutex);
-    if (!inner_stack.empty()) {
-        auto temp = inner_stack.top();
-        inner_stack.pop();
-        return {temp, true};
-    }
-    return {0, false};
-}
+#include "stack.ipp"
 
-template<typename VT>
-size_t tds::mutexed_stack<VT>::size() const { 
-    return inner_stack.size();
-}
+#endif /* __TDS_LB_STACK_HPP__ */

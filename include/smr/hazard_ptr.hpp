@@ -22,8 +22,8 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 // IN THE SOFTWARE.
 
-#ifndef __TDS_HAZARD_PTR_HPP__
-#define __TDS_HAZARD_PTR_HPP__
+#ifndef __SMR_HAZARD_PTR_HPP__
+#define __SMR_HAZARD_PTR_HPP__
 
 #include <array>
 #include <atomic>
@@ -35,8 +35,8 @@
 #include <utility>
 #include <vector>
 
-// Thread-safe Data Structures
-namespace tds {
+// Safe Memory Reclamation
+namespace smr {
     // Namespace detail contains definitions that should not be used
     // outside the hazard_ptr class.
     namespace detail {
@@ -108,4 +108,4 @@ namespace tds {
 
 #include "hazard_ptr.ipp"
 
-#endif /* __TDS_HAZARD_PTR_HPP__ */
+#endif /* __SMR_HAZARD_PTR_HPP__ */

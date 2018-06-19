@@ -22,56 +22,50 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 // IN THE SOFTWARE.
 
-#ifndef __TDS_MUTEXED_QUEUE_HPP__
-#define __TDS_MUTEXED_QUEUE_HPP__
 
-#include <atomic>
-#include <memory>
-#include <mutex>
-#include <queue>
-#include <utility>
-
-// Thread-safe Data Structures
-namespace tds {
-    // Queue with global mutex
-    template<typename VT>
-    class mutexed_queue {
-     public:
-        using value_type = VT;
-
-        void push(value_type);
-        std::pair<value_type, bool> pop();
-        size_t size() const;
-     private:
-        std::mutex mutex;
-        std::queue<VT> inner_queue;
-    };
-
-    // Queue with one mutex to push and another to pop
-    template<typename VT>
-    class dual_mutex_queue {
-        struct node {
-            VT value;
-            node* next;
-        };
-     public:
-        using value_type = VT;
-
-        dual_mutex_queue();
-        ~dual_mutex_queue();
-
-        void push(value_type);
-        std::pair<value_type, bool> pop();
-        size_t size() const;
-     private:
-        std::mutex push_mutex;
-        std::mutex pop_mutex;
-        std::atomic_size_t size_counter{0};
-        node* head;
-        node *tail;
-    };
+template<typename VT>
+tds::lf::stack<VT>::~stack() {
+    auto curr = top.load();
+    while(curr) {
+        auto temp = curr->next;
+        delete curr;
+        curr = temp;
+    }
 }
 
-#include "mutexed_queue.ipp"
+template<typename VT>
+void tds::lf::stack<VT>::push(value_type value) {
+    auto new_top = new tds::lf::stack<VT>::node{value};
+    new_top->next = top;
 
-#endif /* __TDS_MUTEXED_QUEUE_HPP__ */
+    while (!top.compare_exchange_weak(new_top->next, new_top,
+            std::memory_order_acq_rel, std::memory_order_relaxed));
+    size_counter.fetch_add(1, std::memory_order_release);
+}
+
+template<typename VT>
+std::pair<VT, bool> tds::lf::stack<VT>::pop() {
+    node* local_top = nullptr;
+    {
+        smr::hazard_ptr<node> guard;
+        while (true) {
+            local_top = guard.protect(top);
+            if (!local_top) {
+                return {value_type(), false};
+            }
+            if (top.compare_exchange_weak(local_top, local_top->next,
+                    std::memory_order_acq_rel, std::memory_order_relaxed)) {
+                break;
+            }
+        }
+    }
+    auto data = local_top->value;
+    smr::hazard_ptr<node>::retire(local_top);
+    size_counter.fetch_sub(1, std::memory_order_release);
+    return {data, true};
+}
+
+template<typename VT>
+size_t tds::lf::stack<VT>::size() const {
+    return size_counter.load(std::memory_order_acquire);
+}

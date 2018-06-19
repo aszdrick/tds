@@ -27,17 +27,19 @@
 
 #include "dsc/prodcon_precise.hpp"
 #include "dsc/prodcon_sum.hpp"
-#include "tds/mutexed_queue.hpp"
-#include "tds/mutexed_stack.hpp"
-#include "tds/treiber_stack.hpp"
+#include "tds/lb/queue.hpp"
+#include "tds/lb/stack.hpp"
+#include "tds/lf/queue.hpp"
+#include "tds/lf/stack.hpp"
 
 void print_usage() {
     std::cout << "usage:\n"
-              << "prodcon-test [type] [structure] [n_producers] [n_consumers]"
-              << " [n_iterations] [random_seed] [max_gen_value]\n\n"
-              << "type: 'sum', 'precise'\n"
-              << "structure: 'dual_mutex_queue', mutexed_queue', "
-              << "'mutexed_stack', 'treiber_stack'\n"
+              << "prodcon-test [test_type] [sync_type] [structure] "
+              << "[n_producers] [n_consumers] [n_iterations] [random_seed] "
+              << "[max_gen_value]\n\n"
+              << "test_type: 'sum', 'precise'\n"
+              << "sync_type: 'lf, lb"
+              << "structure: 'dual_lock_queue', 'queue', 'stack'\n"
               << "n_producers: unsigned integer\n"
               << "n_consumers: unsigned integer\n"
               << "n_iterations: unsigned integer\n"
@@ -65,64 +67,64 @@ void execute(unsigned np, unsigned nc, unsigned ni, unsigned s, unsigned m) {
     }
 }
 
-int main(int argc, char** argv) {
-    if (argc < 8) {
-        error("missing options!");
-    }
+template<template<template<class> class> class TestType>
+void define_structure(char** argv) {
+    auto sync_type = std::string(argv[2]);
+    auto structure = std::string(argv[3]);
 
-    auto type = std::string(argv[1]);
-    auto structure = std::string(argv[2]);
-
-    if (type == "sum") {
-        if (structure == "dual_mutex_queue") {
-            execute<dsc::prodcon_sum<tds::dual_mutex_queue>>(
-                atol(argv[3]), atol(argv[4]), atol(argv[5]),
-                atol(argv[6]), atol(argv[7])
+    if (sync_type == "lb") {
+        if (structure == "dual_lock_queue") {
+            execute<TestType<tds::lb::dual_lock_queue>>(
+                atol(argv[4]), atol(argv[5]), atol(argv[6]),
+                atol(argv[7]), atol(argv[8])
             );
-        } else if (structure == "mutexed_queue") {
-            execute<dsc::prodcon_sum<tds::mutexed_queue>>(
-                atol(argv[3]), atol(argv[4]), atol(argv[5]),
-                atol(argv[6]), atol(argv[7])
+        } else if (structure == "queue") {
+            execute<TestType<tds::lb::queue>>(
+                atol(argv[4]), atol(argv[5]), atol(argv[6]),
+                atol(argv[7]), atol(argv[8])
             );
-        } else if (structure == "mutexed_stack") {
-            execute<dsc::prodcon_sum<tds::mutexed_stack>>(
-                atol(argv[3]), atol(argv[4]), atol(argv[5]),
-                atol(argv[6]), atol(argv[7])
-            );
-        } else if (structure == "treiber_stack") {
-            execute<dsc::prodcon_sum<tds::treiber_stack>>(
-                atol(argv[3]), atol(argv[4]), atol(argv[5]),
-                atol(argv[6]), atol(argv[7])
+        } else if (structure == "stack") {
+            execute<TestType<tds::lb::stack>>(
+                atol(argv[4]), atol(argv[5]), atol(argv[6]),
+                atol(argv[7]), atol(argv[8])
             );
         } else {
             error("unkown structure!");
         }
-    } else if (type == "precise") {
-        if (structure == "dual_mutex_queue") {
-            execute<dsc::prodcon_precise<tds::dual_mutex_queue>>(
-                atol(argv[3]), atol(argv[4]), atol(argv[5]),
-                atol(argv[6]), atol(argv[7])
+    } else if (sync_type == "lf") {
+        if (structure == "queue") {
+            execute<TestType<tds::lf::queue>>(
+                atol(argv[4]), atol(argv[5]), atol(argv[6]),
+                atol(argv[7]), atol(argv[8])
             );
-        } else if (structure == "mutexed_queue") {
-            execute<dsc::prodcon_precise<tds::mutexed_queue>>(
-                atol(argv[3]), atol(argv[4]), atol(argv[5]),
-                atol(argv[6]), atol(argv[7])
+        } else if (structure == "stack") {
+            execute<TestType<tds::lf::stack>>(
+                atol(argv[4]), atol(argv[5]), atol(argv[6]),
+                atol(argv[7]), atol(argv[8])
             );
-        } else if (structure == "mutexed_stack") {
-            execute<dsc::prodcon_precise<tds::mutexed_stack>>(
-                atol(argv[3]), atol(argv[4]), atol(argv[5]),
-                atol(argv[6]), atol(argv[7])
-            );
-        } else if (structure == "treiber_stack") {
-            execute<dsc::prodcon_precise<tds::treiber_stack>>(
-                atol(argv[3]), atol(argv[4]), atol(argv[5]),
-                atol(argv[6]), atol(argv[7])
-            );
+        } else if (structure == "dual_lock_queue") {
+            error("invalid structure for lf sync_type!");
         } else {
             error("unkown structure!");
         }
     } else {
-        error("unkown type!");
+        error("unkown sync_type!");
+    }
+}
+
+int main(int argc, char** argv) {
+    if (argc < 9) {
+        error("missing options!");
+    }
+
+    auto test_type = std::string(argv[1]);
+
+    if (test_type == "sum") {
+        define_structure<dsc::prodcon_sum>(argv);
+    } else if (test_type == "precise") {
+        define_structure<dsc::prodcon_precise>(argv);
+    } else {
+        error("unkown test_type!");
     }
 
     return 0;

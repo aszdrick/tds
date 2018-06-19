@@ -23,17 +23,17 @@
 // IN THE SOFTWARE.
 
 ///////////////////////////////////////////////////////////////////////////////
-// tds::mutexed_queue
+// tds::lb::queue
 ///////////////////////////////////////////////////////////////////////////////
 
 template<typename VT>
-void tds::mutexed_queue<VT>::push(value_type value) {
+void tds::lb::queue<VT>::push(value_type value) {
     std::lock_guard<std::mutex> guard(mutex);
     inner_queue.push(std::move(value));
 }
 
 template<typename VT>
-std::pair<VT, bool> tds::mutexed_queue<VT>::pop() {
+std::pair<VT, bool> tds::lb::queue<VT>::pop() {
     std::lock_guard<std::mutex> guard(mutex);
     if (!inner_queue.empty()) {
         auto temp = inner_queue.front();
@@ -44,22 +44,22 @@ std::pair<VT, bool> tds::mutexed_queue<VT>::pop() {
 }
 
 template<typename VT>
-size_t tds::mutexed_queue<VT>::size() const { 
+size_t tds::lb::queue<VT>::size() const { 
     return inner_queue.size();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// tds::dual_mutex_queue
+// tds::lb::dual_lock_queue
 ///////////////////////////////////////////////////////////////////////////////
 
 template<typename VT>
-tds::dual_mutex_queue<VT>::dual_mutex_queue() {
+tds::lb::dual_lock_queue<VT>::dual_lock_queue() {
     head = new node{VT(), nullptr};
     tail = head;
 }
 
 template<typename VT>
-tds::dual_mutex_queue<VT>::~dual_mutex_queue() {
+tds::lb::dual_lock_queue<VT>::~dual_lock_queue() {
     auto it = head;
     while(it) {
         auto d = it;
@@ -69,7 +69,7 @@ tds::dual_mutex_queue<VT>::~dual_mutex_queue() {
 }
 
 template<typename VT>
-void tds::dual_mutex_queue<VT>::push(value_type value) {
+void tds::lb::dual_lock_queue<VT>::push(value_type value) {
     std::lock_guard<std::mutex> guard(push_mutex);
     auto new_node = new node{std::move(value), nullptr};
     tail->next = new_node;
@@ -78,20 +78,20 @@ void tds::dual_mutex_queue<VT>::push(value_type value) {
 }
 
 template<typename VT>
-std::pair<VT, bool> tds::dual_mutex_queue<VT>::pop() {
+std::pair<VT, bool> tds::lb::dual_lock_queue<VT>::pop() {
     std::lock_guard<std::mutex> guard(pop_mutex);
     if (!head->next) {
         return {VT(), false};
     }
-    auto value = head->value;
     auto old_head = head;
     head = head->next;
+    auto value = head->value;
     delete old_head;
     size_counter.fetch_sub(1);
     return {value, true};
 }
 
 template<typename VT>
-size_t tds::dual_mutex_queue<VT>::size() const { 
+size_t tds::lb::dual_lock_queue<VT>::size() const { 
     return size_counter;
 }
