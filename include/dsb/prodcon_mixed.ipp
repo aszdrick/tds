@@ -56,7 +56,7 @@ void dsb::prodcon_mixed<DS>::work(unsigned n, unsigned seed) {
         auto start = std::chrono::steady_clock::now();
         while (std::chrono::steady_clock::now() - start < produce_delay);
 
-        auto result = data.pop();
+        data.pop();
 
         start = std::chrono::steady_clock::now();
         while (std::chrono::steady_clock::now() - start < consume_delay);
