@@ -33,11 +33,13 @@ TSTDIR :=tests
 DEPDIR :=.deps
 ### PROGRAM-RELATED VARIABLES
 # Files containing the main() function
-MAINFILES :=$(SRCDIR)/prodcon_test.cpp
+MAINFILES :=$(SRCDIR)/pc_test.cpp $(SRCDIR)/pc_bench.cpp \
+$(SRCDIR)/pc_mixed_bench.cpp
 # Binaries corresponding to each file with a main() function
-BINARIES  :=$(BINDIR)/prodcon-test
+BINARIES  :=$(BINDIR)/pc-test $(BINDIR)/pc-bench \
+$(BINDIR)/pc-mixed-bench
 # Compiler & linker flags
-CXXFLAGS :=-std=c++14 -Wall -pthread -O3
+CXXFLAGS :=-std=c++14 -Wall -pthread -O0
 LDFLAGS  :=
 LDLIBS   :=
 INCLUDE  :=-I$(INCDIR)

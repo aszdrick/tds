@@ -22,69 +22,57 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 // IN THE SOFTWARE.
 
-template<template<class> class DS>
-dsc::prodcon_sum<DS>::prodcon_sum(unsigned np, unsigned nc, unsigned limit) :
-  nproducers{np},
-  nconsumers{nc},
-  gen_limit{limit},
-  active{np} {
-}
 
 template<template<class> class DS>
-bool dsc::prodcon_sum<DS>::run(unsigned n_iterations, unsigned seed) {
-    std::vector<std::future<intmax_t>> producer_futures(nproducers);
-    std::vector<std::future<intmax_t>> consumer_futures(nconsumers);
-    intmax_t consumer_total_sum = 0;
-    intmax_t producer_total_sum = 0;
+dsb::prodcon<DS>::prodcon(unsigned np, unsigned nc, unsigned pd, unsigned cd) :
+ nproducers{np},
+ nconsumers{nc},
+ produce_delay{pd},
+ consume_delay{cd},
+ active{np} { }
 
-    for (unsigned i = 0; i < std::max(nconsumers, nproducers); ++i) {
-        if (i < nproducers) {
-            producer_futures[i] = std::async(std::launch::async,
-                &prodcon_sum<DS>::produce, this, n_iterations, seed);
-        }
-        if (i < nconsumers) {
-            consumer_futures[i] = std::async(std::launch::async,
-                &prodcon_sum<DS>::consume, this);
-        }
+template<template<class> class DS>
+void dsb::prodcon<DS>::run(unsigned n, unsigned seed) {
+    std::vector<std::thread> threads;
+    for (unsigned i = 0; i < nproducers; ++i) {
+        threads.emplace_back(&prodcon<DS>::produce, this, n, seed);
     }
 
-    for (auto& future : consumer_futures) {
-        consumer_total_sum += future.get();
+    for (unsigned i = 0; i < nconsumers-1; ++i) {
+        threads.emplace_back(&prodcon<DS>::consume, this);
     }
 
-    for (auto& future : producer_futures) {
-        producer_total_sum += future.get();
+    consume();
+
+    for (auto& thread : threads) {
+        thread.join();
     }
 
     active.store(nproducers, std::memory_order_relaxed);
-    return consumer_total_sum == producer_total_sum;
-}
-
-template<template<class> class DS> intmax_t dsc::prodcon_sum<DS>::consume() {
-    intmax_t partial_sum = 0;
-    intmax_t number = 0;
-    bool valid = true;
-
-    while (valid || active.load(std::memory_order_relaxed) || data.size()) {
-        std::tie(number, valid) = data.pop();
-        if (valid) {
-            partial_sum += number;
-        }
-    }
-    return partial_sum;
 }
 
 template<template<class> class DS>
-intmax_t dsc::prodcon_sum<DS>::produce(unsigned n_iterations, unsigned seed) {
+void dsb::prodcon<DS>::produce(unsigned n_iterations, unsigned seed) {
     std::mt19937_64 gen(seed);
-    intmax_t partial_sum = 0;
-
-    for (intmax_t i = 0; i < n_iterations; ++i) {
-        unsigned number = gen() % gen_limit;
-        partial_sum += number;
+    
+    for (unsigned i = 0; i < n_iterations; ++i) {
+        unsigned number = gen() % std::numeric_limits<unsigned>::max();
         data.push(number);
+        auto start = std::chrono::steady_clock::now();
+        while (std::chrono::steady_clock::now() - start < produce_delay);
     }
-
     active.fetch_sub(1);
-    return partial_sum;
+}
+
+template<template<class> class DS>
+void dsb::prodcon<DS>::consume() {
+    bool valid = true;
+
+    while (valid || active.load(std::memory_order_relaxed) || data.size()) {
+        valid = data.pop().second;
+        if (valid) {
+            auto start = std::chrono::steady_clock::now();
+            while (std::chrono::steady_clock::now() - start < consume_delay);
+        }
+    }
 }

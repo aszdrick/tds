@@ -33,23 +33,19 @@ dsc::prodcon_precise<DS>::prodcon_precise(unsigned np, unsigned nc,
 
 template<template<class> class DS>
 bool dsc::prodcon_precise<DS>::run(unsigned n_iterations, unsigned seed) {
-    std::vector<std::future<CType>> producer_futures;
-    std::vector<std::future<CType>> consumer_futures;
+    std::vector<std::future<CType>> producer_futures(nproducers);
+    std::vector<std::future<CType>> consumer_futures(nconsumers);
     CType producer_counters;
     CType consumer_counters;
 
     for (unsigned i = 0; i < nproducers; ++i) {
-        producer_futures.emplace_back(std::async(std::launch::async,
-            [this](unsigned n_iterations, unsigned seed) {
-                return this->produce(n_iterations, seed);
-            }, n_iterations, seed
-        ));
+        producer_futures[i] = std::async(std::launch::async,
+            &prodcon_precise<DS>::produce, this, n_iterations, seed);
     }
 
     for (unsigned i = 0; i < nconsumers; ++i) {
-        consumer_futures.emplace_back(std::async(std::launch::async,
-            [this]() { return this->consume(); }
-        ));
+        consumer_futures[i] = std::async(std::launch::async,
+            &prodcon_precise<DS>::consume, this);
     }
 
     for (unsigned i = 0; i < producer_futures.size(); ++i) {

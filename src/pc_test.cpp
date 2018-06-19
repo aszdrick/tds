@@ -35,18 +35,18 @@
 void print_usage() {
     std::cout << "usage:\n"
               << "prodcon-test [test_type] [sync_type] [structure] "
-              << "[n_producers] [n_consumers] [n_iterations] [random_seed] "
+              << "[n_producers] [n_consumers] [n_productions] [random_seed] "
               << "[max_gen_value]\n\n"
               << "test_type: 'sum', 'precise'\n"
               << "sync_type: 'lf, lb"
               << "structure: 'dual_lock_queue', 'queue', 'stack'\n"
               << "n_producers: unsigned integer\n"
               << "n_consumers: unsigned integer\n"
-              << "n_iterations: unsigned integer\n"
+              << "n_productions: unsigned integer\n"
               << "random_seed: unsigned integer\n\n"
               << "max_gen_value: unsigned integer\n\n"
               << "usage example:\n"
-              << "./prodcon-test precise treiber_stack 4 4 100000 42 100"
+              << "./prodcon-test precise lf stack 4 4 100000 42 100"
               << std::endl;
 }
 
