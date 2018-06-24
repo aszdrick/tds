@@ -34,7 +34,7 @@
 // Data Structure Checkers
 namespace dsc {
     // Producer-Consumer precise verification
-    template<template<class> class DS>
+    template<template<class...> class DS>
     class prodcon_precise {
         using CType = std::unordered_map<unsigned, uintmax_t>;
      public:

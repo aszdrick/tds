@@ -23,23 +23,23 @@
 // IN THE SOFTWARE.
 
 
-template<template<class> class DS>
-dsb::prodcon<DS>::prodcon(unsigned np, unsigned nc, unsigned pd, unsigned cd) :
+template<template<class...> class D>
+dsb::prodcon<D>::prodcon(unsigned np, unsigned nc, unsigned pd, unsigned cd):
  nproducers{np},
  nconsumers{nc},
  produce_delay{pd},
  consume_delay{cd},
  active{np} { }
 
-template<template<class> class DS>
-void dsb::prodcon<DS>::run(unsigned n, unsigned seed) {
+template<template<class...> class D>
+void dsb::prodcon<D>::run(unsigned n, unsigned seed) {
     std::vector<std::thread> threads;
     for (unsigned i = 0; i < nproducers; ++i) {
-        threads.emplace_back(&prodcon<DS>::produce, this, n, seed);
+        threads.emplace_back(&prodcon<D>::produce, this, n, seed);
     }
 
     for (unsigned i = 0; i < nconsumers-1; ++i) {
-        threads.emplace_back(&prodcon<DS>::consume, this);
+        threads.emplace_back(&prodcon<D>::consume, this);
     }
 
     consume();
@@ -51,28 +51,28 @@ void dsb::prodcon<DS>::run(unsigned n, unsigned seed) {
     active.store(nproducers, std::memory_order_relaxed);
 }
 
-template<template<class> class DS>
-void dsb::prodcon<DS>::produce(unsigned n_iterations, unsigned seed) {
+template<template<class...> class D>
+void dsb::prodcon<D>::produce(unsigned n_iterations, unsigned seed) {
     std::mt19937_64 gen(seed);
     
     for (unsigned i = 0; i < n_iterations; ++i) {
         unsigned number = gen() % std::numeric_limits<unsigned>::max();
         data.push(number);
-        auto start = std::chrono::steady_clock::now();
-        while (std::chrono::steady_clock::now() - start < produce_delay);
+        auto end = std::chrono::steady_clock::now() + produce_delay;
+        while (std::chrono::steady_clock::now() < end);
     }
     active.fetch_sub(1);
 }
 
-template<template<class> class DS>
-void dsb::prodcon<DS>::consume() {
+template<template<class...> class D>
+void dsb::prodcon<D>::consume() {
     bool valid = true;
 
     while (valid || active.load(std::memory_order_relaxed) || data.size()) {
         valid = data.pop().second;
         if (valid) {
-            auto start = std::chrono::steady_clock::now();
-            while (std::chrono::steady_clock::now() - start < consume_delay);
+            auto end = std::chrono::steady_clock::now() + consume_delay;
+            while (std::chrono::steady_clock::now() < end);
         }
     }
 }

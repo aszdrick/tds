@@ -22,42 +22,39 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 // IN THE SOFTWARE.
 
-#ifndef __TDS_LF_QUEUE_HPP__
-#define __TDS_LF_QUEUE_HPP__
+#ifndef __BS_BACKOFF_HPP__
+#define __BS_BACKOFF_HPP__
 
-#include <atomic>
-#include <memory>
-#include <utility>
+#include <chrono>
 
-#include "smr/hazard_ptr.hpp"
-#include "backoff.hpp"
-
-// Thread-safe Data Structures - Lock-Free
-namespace tds { namespace lf {
-    template<typename VT, typename BS = bs::no_backoff>
-    class queue {
+// Back-Off Strategies 
+namespace bs {
+    class no_backoff {
      public:
-        using value_type = VT;
-        using BackOffStrategy = BS;
-
-        queue();
-        ~queue();
-
-        void push(value_type);
-        std::pair<value_type, bool> pop();
-        size_t size() const;
-     private:
-        struct node {
-            value_type value;
-            std::atomic<node*> next{nullptr};
-        };
-
-        std::atomic<node*> head{nullptr};
-        std::atomic<node*> tail{nullptr};
-        std::atomic_size_t size_counter{0};
+        void operator()() { }
     };
-}}
 
-#include "queue.ipp"
+    class exponential {
+     public:
+        exponential(unsigned = 1, unsigned = 2, unsigned = 1000);
 
-#endif /* __TDS_LF_QUEUE_HPP__ */
+        void operator()();
+     private:
+        unsigned const step;
+        unsigned const max;
+        std::chrono::nanoseconds delay;
+    };
+
+    exponential::exponential(unsigned init, unsigned step, unsigned max) :
+     step{step},
+     max{max},
+     delay{init} { }
+
+    void exponential::operator()() {
+        auto end = std::chrono::steady_clock::now() + delay;
+        while (std::chrono::steady_clock::now() < end);
+        delay *= 2;
+    }
+}
+
+#endif /* __BS_BACKOFF_HPP__ */

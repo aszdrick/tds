@@ -23,8 +23,8 @@
 // IN THE SOFTWARE.
 
 
-template<typename VT>
-tds::lf::stack<VT>::~stack() {
+template<typename VT, typename BS>
+tds::lf::stack<VT,BS>::~stack() {
     auto curr = top.load();
     while(curr) {
         auto temp = curr->next;
@@ -33,18 +33,22 @@ tds::lf::stack<VT>::~stack() {
     }
 }
 
-template<typename VT>
-void tds::lf::stack<VT>::push(value_type value) {
-    auto new_top = new tds::lf::stack<VT>::node{value};
+template<typename VT, typename BS>
+void tds::lf::stack<VT,BS>::push(value_type value) {
+    BackOffStrategy backoff;
+    auto new_top = new tds::lf::stack<VT,BS>::node{value};
     new_top->next = top;
 
     while (!top.compare_exchange_weak(new_top->next, new_top,
-            std::memory_order_acq_rel, std::memory_order_relaxed));
+            std::memory_order_acq_rel, std::memory_order_relaxed)) {
+        backoff();
+    }
     size_counter.fetch_add(1, std::memory_order_release);
 }
 
-template<typename VT>
-std::pair<VT, bool> tds::lf::stack<VT>::pop() {
+template<typename VT, typename BS>
+std::pair<VT, bool> tds::lf::stack<VT,BS>::pop() {
+    BackOffStrategy backoff;
     node* local_top = nullptr;
     {
         smr::hazard_ptr<node> guard;
@@ -56,6 +60,8 @@ std::pair<VT, bool> tds::lf::stack<VT>::pop() {
             if (top.compare_exchange_weak(local_top, local_top->next,
                     std::memory_order_acq_rel, std::memory_order_relaxed)) {
                 break;
+            } else {
+                backoff();
             }
         }
     }
@@ -65,7 +71,7 @@ std::pair<VT, bool> tds::lf::stack<VT>::pop() {
     return {data, true};
 }
 
-template<typename VT>
-size_t tds::lf::stack<VT>::size() const {
+template<typename VT, typename BS>
+size_t tds::lf::stack<VT,BS>::size() const {
     return size_counter.load(std::memory_order_acquire);
 }

@@ -36,7 +36,7 @@
 // Data Structure Benchmarks
 namespace dsb {
     // Producer-Consumer benchmark
-    template<template<class> class DS>
+    template<template<class...> class DS>
     class prodcon {
      public:
         prodcon(unsigned, unsigned, unsigned, unsigned);

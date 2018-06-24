@@ -24,17 +24,17 @@
 
 #include <cassert>
 
-template<template<class> class DS>
-dsb::prodcon_mixed<DS>::prodcon_mixed(unsigned nw, unsigned pd, unsigned cd) :
+template<template<class...> class D>
+dsb::prodcon_mixed<D>::prodcon_mixed(unsigned nw, unsigned pd, unsigned cd):
  nworkers{nw},
  produce_delay{pd},
  consume_delay{cd} { }
 
-template<template<class> class DS>
-void dsb::prodcon_mixed<DS>::run(unsigned n, unsigned seed) {
+template<template<class...> class D>
+void dsb::prodcon_mixed<D>::run(unsigned n, unsigned seed) {
     std::vector<std::thread> threads;
     for (unsigned i = 0; i < nworkers-1; ++i) {
-        threads.emplace_back(&prodcon_mixed<DS>::work, this, n, seed);
+        threads.emplace_back(&prodcon_mixed<D>::work, this, n, seed);
     }
 
     work(n, seed);
@@ -44,8 +44,8 @@ void dsb::prodcon_mixed<DS>::run(unsigned n, unsigned seed) {
     }
 }
 
-template<template<class> class DS>
-void dsb::prodcon_mixed<DS>::work(unsigned n, unsigned seed) {
+template<template<class...> class D>
+void dsb::prodcon_mixed<D>::work(unsigned n, unsigned seed) {
     std::mt19937_64 gen(seed);
 
     for (unsigned i = 0; i < n; ++i) {
@@ -53,12 +53,12 @@ void dsb::prodcon_mixed<DS>::work(unsigned n, unsigned seed) {
 
         data.push(number);
         
-        auto start = std::chrono::steady_clock::now();
-        while (std::chrono::steady_clock::now() - start < produce_delay);
+        auto end = std::chrono::steady_clock::now() + produce_delay;
+        while (std::chrono::steady_clock::now() < end);
 
         data.pop();
 
-        start = std::chrono::steady_clock::now();
-        while (std::chrono::steady_clock::now() - start < consume_delay);
+        end = std::chrono::steady_clock::now() + consume_delay;
+        while (std::chrono::steady_clock::now() < end);
     }
 }

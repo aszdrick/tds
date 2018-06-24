@@ -22,16 +22,15 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 // IN THE SOFTWARE.
 
-
-template<typename VT>
-tds::lf::queue<VT>::queue() {
+template<typename VT, typename BS>
+tds::lf::queue<VT,BS>::queue() {
     auto dumb_node = new node{VT()};
     head.store(dumb_node, std::memory_order_relaxed);
     tail.store(dumb_node, std::memory_order_relaxed);
 }
 
-template<typename VT>
-tds::lf::queue<VT>::~queue() {
+template<typename VT, typename BS>
+tds::lf::queue<VT,BS>::~queue() {
     auto curr = head.load(std::memory_order_relaxed);
     while(curr) {
         auto temp = curr->next.load(std::memory_order_relaxed);
@@ -40,8 +39,9 @@ tds::lf::queue<VT>::~queue() {
     }
 }
 
-template<typename VT>
-void tds::lf::queue<VT>::push(value_type value) {
+template<typename VT, typename BS>
+void tds::lf::queue<VT,BS>::push(value_type value) {
+    BackOffStrategy backoff;
     auto new_node = new node{value};
     node* local_tail = nullptr;
     smr::hazard_ptr<node> guard;
@@ -60,6 +60,8 @@ void tds::lf::queue<VT>::push(value_type value) {
         if (local_tail->next.compare_exchange_weak(next, new_node,
                 std::memory_order_acq_rel, std::memory_order_relaxed)) {
             break;
+        } else {
+            backoff();
         }
     }
 
@@ -68,8 +70,9 @@ void tds::lf::queue<VT>::push(value_type value) {
     size_counter.fetch_add(1, std::memory_order_release);
 }
 
-template<typename VT>
-std::pair<VT, bool> tds::lf::queue<VT>::pop() {
+template<typename VT, typename BS>
+std::pair<VT, bool> tds::lf::queue<VT,BS>::pop() {
+    BackOffStrategy backoff;
     node* local_head = nullptr;
     auto data = VT();
     {
@@ -95,6 +98,8 @@ std::pair<VT, bool> tds::lf::queue<VT>::pop() {
             if (head.compare_exchange_weak(local_head, next,
                     std::memory_order_acq_rel, std::memory_order_relaxed)) {
                 break;
+            } else {
+                backoff();
             }
         }
     }
@@ -103,7 +108,7 @@ std::pair<VT, bool> tds::lf::queue<VT>::pop() {
     return {data, true};
 }
 
-template<typename VT>
-size_t tds::lf::queue<VT>::size() const {
+template<typename VT, typename BS>
+size_t tds::lf::queue<VT,BS>::size() const {
     return size_counter.load(std::memory_order_acquire);
 }

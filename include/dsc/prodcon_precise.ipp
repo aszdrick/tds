@@ -23,7 +23,7 @@
 // IN THE SOFTWARE.
 
 
-template<template<class> class DS>
+template<template<class...> class DS>
 dsc::prodcon_precise<DS>::prodcon_precise(unsigned np, unsigned nc,
                                           unsigned limit) :
  nproducers{np},
@@ -31,7 +31,7 @@ dsc::prodcon_precise<DS>::prodcon_precise(unsigned np, unsigned nc,
  gen_limit{limit},
  active{np} { }
 
-template<template<class> class DS>
+template<template<class...> class DS>
 bool dsc::prodcon_precise<DS>::run(unsigned n_iterations, unsigned seed) {
     std::vector<std::future<CType>> producer_futures(nproducers);
     std::vector<std::future<CType>> consumer_futures(nconsumers);
@@ -72,7 +72,7 @@ bool dsc::prodcon_precise<DS>::run(unsigned n_iterations, unsigned seed) {
     return producer_counters == consumer_counters;
 }
 
-template<template<class> class DS>
+template<template<class...> class DS>
 typename dsc::prodcon_precise<DS>::CType dsc::prodcon_precise<DS>::consume() {
     CType counters;
     unsigned number = 0;
@@ -91,7 +91,7 @@ typename dsc::prodcon_precise<DS>::CType dsc::prodcon_precise<DS>::consume() {
     return counters;
 }
 
-template<template<class> class DS>
+template<template<class...> class DS>
 typename dsc::prodcon_precise<DS>::CType
 dsc::prodcon_precise<DS>::produce(unsigned n_iterations, unsigned seed) {
     std::mt19937_64 gen(seed);

@@ -31,13 +31,25 @@
 #include "tds/lf/queue.hpp"
 #include "tds/lf/stack.hpp"
 
+namespace tds { namespace lf {
+    template<typename T>
+    using stack_ebs = stack<T, bs::exponential>;
+    template<typename T>
+    using stack_nbs = stack<T, bs::no_backoff>;
+    template<typename T>
+    using queue_ebs = queue<T, bs::exponential>;
+    template<typename T>
+    using queue_nbs = queue<T, bs::no_backoff>;
+}}
+
 void print_usage() {
     std::cout << "usage:\n"
-              << "prodcon-bench [sync_type] [structure] [n_producers] "
+              << "pc-bench [sync_type] [structure] [backoff] [n_producers] "
               << "[n_consumers] [n_productions] [random_seed] [produce_delay]"
               << " [consume_delay]\n\n"
               << "sync_type: 'lf, lb"
               << "structure: 'dual_lock_queue', 'queue', 'stack'\n"
+              << "backoff: 'none', 'exponential'\n"
               << "n_producers: unsigned integer\n"
               << "n_consumers: unsigned integer\n"
               << "n_productions: unsigned integer\n"
@@ -45,7 +57,7 @@ void print_usage() {
               << "produce_delay: unsigned integer (nanoseconds)\n\n"
               << "consume_delay: unsigned integer (nanoseconds)\n\n"
               << "usage example:\n"
-              << "./prodcon-bench lf stack 4 4 100000 42 100 100"
+              << "./pc-bench lf stack none 4 4 100000 42 100 100"
               << std::endl;
 }
 
@@ -63,43 +75,67 @@ void execute(unsigned np, unsigned nc, unsigned ni, unsigned s, unsigned pd,
 }
 
 int main(int argc, char** argv) {
-    if (argc < 9) {
+    if (argc < 10) {
         error("missing options!");
     }
 
     auto sync_type = std::string(argv[1]);
     auto structure = std::string(argv[2]);
+    auto backoff = std::string(argv[3]);
 
     if (sync_type == "lb") {
-        if (structure == "dual_lock_queue") {
-            execute<dsb::prodcon<tds::lb::dual_lock_queue>>(
-                atol(argv[3]), atol(argv[4]), atol(argv[5]), atol(argv[6]),
-                atol(argv[7]), atol(argv[8])
-            );
-        } else if (structure == "queue") {
-            execute<dsb::prodcon<tds::lb::queue>>(
-                atol(argv[3]), atol(argv[4]), atol(argv[5]), atol(argv[6]),
-                atol(argv[7]), atol(argv[8])
-            );
-        } else if (structure == "stack") {
-            execute<dsb::prodcon<tds::lb::stack>>(
-                atol(argv[3]), atol(argv[4]), atol(argv[5]), atol(argv[6]),
-                atol(argv[7]), atol(argv[8])
-            );
+        if (backoff == "none") {
+            if (structure == "dual_lock_queue") {
+                execute<dsb::prodcon<tds::lb::dual_lock_queue>>(
+                    atol(argv[4]), atol(argv[5]), atol(argv[6]), atol(argv[7]),
+                    atol(argv[8]), atol(argv[9])
+                );
+            } else if (structure == "queue") {
+                execute<dsb::prodcon<tds::lb::queue>>(
+                    atol(argv[4]), atol(argv[5]), atol(argv[6]), atol(argv[7]),
+                    atol(argv[8]), atol(argv[9])
+                );
+            } else if (structure == "stack") {
+                execute<dsb::prodcon<tds::lb::stack>>(
+                    atol(argv[4]), atol(argv[5]), atol(argv[6]), atol(argv[7]),
+                    atol(argv[8]), atol(argv[9])
+                );
+            } else {
+                error("unkown structure!");
+            }
         } else {
-            error("unkown structure!");
+            error("lock-based data structures do not support"
+                  " backoff (use none)");
         }
     } else if (sync_type == "lf") {
         if (structure == "queue") {
-            execute<dsb::prodcon<tds::lf::queue>>(
-                atol(argv[3]), atol(argv[4]), atol(argv[5]), atol(argv[6]),
-                atol(argv[7]), atol(argv[8])
-            );
+            if (backoff == "none") {
+                execute<dsb::prodcon<tds::lf::queue_nbs>>(
+                    atol(argv[4]), atol(argv[5]), atol(argv[6]), atol(argv[7]),
+                    atol(argv[8]), atol(argv[9])
+                );
+            } else if (backoff == "exponential") {
+                execute<dsb::prodcon<tds::lf::queue_ebs>>(
+                    atol(argv[4]), atol(argv[5]), atol(argv[6]), atol(argv[7]),
+                    atol(argv[8]), atol(argv[9])
+                );
+            } else {
+                error("unkown backoff strategy!");
+            }
         } else if (structure == "stack") {
-            execute<dsb::prodcon<tds::lf::stack>>(
-                atol(argv[3]), atol(argv[4]), atol(argv[5]), atol(argv[6]),
-                atol(argv[7]), atol(argv[8])
-            );
+            if (backoff == "none") {
+                execute<dsb::prodcon<tds::lf::stack_nbs>>(
+                    atol(argv[4]), atol(argv[5]), atol(argv[6]), atol(argv[7]),
+                    atol(argv[8]), atol(argv[9])
+                );
+            } else if (backoff == "exponential") {
+                execute<dsb::prodcon<tds::lf::stack_ebs>>(
+                    atol(argv[4]), atol(argv[5]), atol(argv[6]), atol(argv[7]),
+                    atol(argv[8]), atol(argv[9])
+                );
+            } else {
+                error("unkown backoff strategy!");
+            }
         } else if (structure == "dual_lock_queue") {
             error("invalid structure for lf sync_type!");
         } else {

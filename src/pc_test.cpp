@@ -32,21 +32,33 @@
 #include "tds/lf/queue.hpp"
 #include "tds/lf/stack.hpp"
 
+namespace tds { namespace lf {
+    template<typename T>
+    using stack_ebs = stack<T, bs::exponential>;
+    template<typename T>
+    using stack_nbs = stack<T, bs::no_backoff>;
+    template<typename T>
+    using queue_ebs = queue<T, bs::exponential>;
+    template<typename T>
+    using queue_nbs = queue<T, bs::no_backoff>;
+}}
+
 void print_usage() {
     std::cout << "usage:\n"
-              << "prodcon-test [test_type] [sync_type] [structure] "
+              << "pc-test [test_type] [sync_type] [structure] [backoff] "
               << "[n_producers] [n_consumers] [n_productions] [random_seed] "
               << "[max_gen_value]\n\n"
               << "test_type: 'sum', 'precise'\n"
               << "sync_type: 'lf, lb"
               << "structure: 'dual_lock_queue', 'queue', 'stack'\n"
+              << "backoff: 'none', 'exponential'\n"
               << "n_producers: unsigned integer\n"
               << "n_consumers: unsigned integer\n"
               << "n_productions: unsigned integer\n"
               << "random_seed: unsigned integer\n\n"
               << "max_gen_value: unsigned integer\n\n"
               << "usage example:\n"
-              << "./prodcon-test precise lf stack 4 4 100000 42 100"
+              << "./pc-test precise lf stack 4 4 100000 42 100"
               << std::endl;
 }
 
@@ -67,41 +79,65 @@ void execute(unsigned np, unsigned nc, unsigned ni, unsigned s, unsigned m) {
     }
 }
 
-template<template<template<class> class> class TestType>
+template<template<template<class...> class> class TestType>
 void define_structure(char** argv) {
     auto sync_type = std::string(argv[2]);
     auto structure = std::string(argv[3]);
+    auto backoff = std::string(argv[4]);
 
     if (sync_type == "lb") {
-        if (structure == "dual_lock_queue") {
-            execute<TestType<tds::lb::dual_lock_queue>>(
-                atol(argv[4]), atol(argv[5]), atol(argv[6]),
-                atol(argv[7]), atol(argv[8])
-            );
-        } else if (structure == "queue") {
-            execute<TestType<tds::lb::queue>>(
-                atol(argv[4]), atol(argv[5]), atol(argv[6]),
-                atol(argv[7]), atol(argv[8])
-            );
-        } else if (structure == "stack") {
-            execute<TestType<tds::lb::stack>>(
-                atol(argv[4]), atol(argv[5]), atol(argv[6]),
-                atol(argv[7]), atol(argv[8])
-            );
+        if (backoff == "none") {
+            if (structure == "dual_lock_queue") {
+                execute<TestType<tds::lb::dual_lock_queue>>(
+                    atol(argv[5]), atol(argv[6]), atol(argv[7]),
+                    atol(argv[8]), atol(argv[9])
+                );
+            } else if (structure == "queue") {
+                execute<TestType<tds::lb::queue>>(
+                    atol(argv[5]), atol(argv[6]), atol(argv[7]),
+                    atol(argv[8]), atol(argv[9])
+                );
+            } else if (structure == "stack") {
+                execute<TestType<tds::lb::stack>>(
+                    atol(argv[5]), atol(argv[6]), atol(argv[7]),
+                    atol(argv[8]), atol(argv[9])
+                );
+            } else {
+                error("unkown structure!");
+            }
         } else {
-            error("unkown structure!");
+            error("lock-based data structures do not support"
+                  " backoff (use none)");
         }
     } else if (sync_type == "lf") {
         if (structure == "queue") {
-            execute<TestType<tds::lf::queue>>(
-                atol(argv[4]), atol(argv[5]), atol(argv[6]),
-                atol(argv[7]), atol(argv[8])
-            );
+            if (backoff == "none") {
+                execute<TestType<tds::lf::queue_nbs>>(
+                    atol(argv[5]), atol(argv[6]), atol(argv[7]),
+                    atol(argv[8]), atol(argv[9])
+                );
+            } else if (backoff == "exponential") {
+                execute<TestType<tds::lf::queue_ebs>>(
+                    atol(argv[5]), atol(argv[6]), atol(argv[7]),
+                    atol(argv[8]), atol(argv[9])
+                );
+            } else {
+                error("unkown backoff strategy!");
+            }
         } else if (structure == "stack") {
-            execute<TestType<tds::lf::stack>>(
-                atol(argv[4]), atol(argv[5]), atol(argv[6]),
-                atol(argv[7]), atol(argv[8])
-            );
+            if (backoff == "none") {
+                execute<TestType<tds::lf::stack_nbs>>(
+                    atol(argv[5]), atol(argv[6]), atol(argv[7]),
+                    atol(argv[8]), atol(argv[9])
+                );
+            } else if (backoff == "exponential") {
+                execute<TestType<tds::lf::stack_ebs>>(
+                    atol(argv[5]), atol(argv[6]), atol(argv[7]),
+                    atol(argv[8]), atol(argv[9])
+                );
+            } else {
+                error("unkown backoff strategy!");
+            }
         } else if (structure == "dual_lock_queue") {
             error("invalid structure for lf sync_type!");
         } else {
@@ -113,7 +149,7 @@ void define_structure(char** argv) {
 }
 
 int main(int argc, char** argv) {
-    if (argc < 9) {
+    if (argc < 10) {
         error("missing options!");
     }
 

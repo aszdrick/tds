@@ -36,7 +36,7 @@
 // Data Structure Benchmarks
 namespace dsb {
     // Producer-Consumer precise verification
-    template<template<class> class DS>
+    template<template<class...> class DS>
     class prodcon_mixed {
      public:
         prodcon_mixed(unsigned, unsigned, unsigned);

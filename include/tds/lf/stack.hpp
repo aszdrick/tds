@@ -33,10 +33,11 @@
 
 // Thread-safe Data Structures - Lock-Free
 namespace tds { namespace lf {
-    template<typename VT>
+    template<typename VT, typename BS = bs::no_backoff>
     class stack {
      public:
         using value_type = VT;
+        using BackOffStrategy = BS;
 
         ~stack();
 

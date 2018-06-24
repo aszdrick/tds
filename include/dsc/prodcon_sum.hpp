@@ -33,7 +33,7 @@
 // Data Structure Checkers
 namespace dsc {
     // Producer-Consumer sum verification
-    template<template<class> class DS>
+    template<template<class...> class DS>
     class prodcon_sum {
      public:
         prodcon_sum(unsigned, unsigned, unsigned = 100);
