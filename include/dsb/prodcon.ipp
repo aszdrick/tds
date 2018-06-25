@@ -34,12 +34,13 @@ dsb::prodcon<D>::prodcon(unsigned np, unsigned nc, unsigned pd, unsigned cd):
 template<template<class...> class D>
 void dsb::prodcon<D>::run(unsigned n, unsigned seed) {
     std::vector<std::thread> threads;
-    for (unsigned i = 0; i < nproducers; ++i) {
-        threads.emplace_back(&prodcon<D>::produce, this, n, seed);
-    }
 
     for (unsigned i = 0; i < nconsumers-1; ++i) {
         threads.emplace_back(&prodcon<D>::consume, this);
+    }
+
+    for (unsigned i = 0; i < nproducers; ++i) {
+        threads.emplace_back(&prodcon<D>::produce, this, n, seed);
     }
 
     consume();

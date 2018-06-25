@@ -51,14 +51,14 @@ void dsb::prodcon_mixed<D>::work(unsigned n, unsigned seed) {
     for (unsigned i = 0; i < n; ++i) {
         unsigned number = gen() % std::numeric_limits<unsigned>::max();
 
-        data.push(number);
-        
         auto end = std::chrono::steady_clock::now() + produce_delay;
         while (std::chrono::steady_clock::now() < end);
 
-        data.pop();
+        data.push(number);
 
         end = std::chrono::steady_clock::now() + consume_delay;
         while (std::chrono::steady_clock::now() < end);
+
+        data.pop();
     }
 }
